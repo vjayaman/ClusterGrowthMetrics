@@ -9,22 +9,31 @@ stopwatch[1] <- Sys.time()
 
 source("global.R")
 source("tabulating_functions.R")
+dir.create("data", showWarnings = FALSE)
 
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+## FOR USER: edit these variables as needed (move all data files to the 'data' directory)
+```{r}
+tp1_filename <- "data/3692_2020-04-15_thresholds.csv"
 ```
 
 ## Synthetic dataset development: 
 
 ```{r}
-tp2 <- read.csv("3692_2020-04-15_tree-clusters-dm/3692_2020-04-15_thresholds.csv", 
-                stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+if (file.exists(tp1_filename)) {
+  tp2 <- read.csv(tp1_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+}else {
+  stop(paste0("File at \'", tp1_filename, "\' not found."))
+}
   
 melted_tp2 <- melt(tp2, id = "isolate") %>% as_tibble()
 melted_tp2$h <- melted_tp2$variable %>% as.character() %>% gsub("h_", "", .) %>% as.integer()
 colnames(melted_tp2) <- c("isolate", "height", "cluster", "num_h")
 
 heights <- melted_tp2$num_h %>% unique()
-  
+
 # clusters and sizes for all heights for TP2
 melted_tp2$height %<>% as.character()
 cs_sizes <- lapply(colnames(tp2)[-1], function(h) {
@@ -87,7 +96,8 @@ t1_cl_over_one <- t1_sizes %>% filter(size > 1) %>% nrow()
 
 num_ms <- list("ms_t1" = t1_cl_over_one, "ms_t2" = t2_cl_over_one)
 
-# write.csv(tp1, "3692_2020-04-15_tree-clusters-dm/synthetic_tp1.csv", row.names = FALSE)
+print("Note, writing over existing \'synthetic_tp1.csv\'")
+# write.csv(tp1, "data/synthetic_tp1.csv", row.names = FALSE)
 ```
 
 Then, using the same height for comparison, there are 215 multi-strain clusters at TP1.
@@ -96,12 +106,19 @@ So the number of multi-strain clusters grew by `r ((t2_cl_over_one - t1_cl_over_
 ## Cluster metric generation
 
 ```{r cluster_sizes_melt}
-time1 <- "3692_2020-04-15_tree-clusters-dm/synthetic_tp1.csv" %>%
-  read.csv(file = ., stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+synthetic_filename <- "data/synthetic_tp1.csv"
+if (file.exists(synthetic_filename)) {
+  time1 <- read.csv(file = synthetic_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+}else {
+  stop(paste0("File at \'", synthetic_filename, "\' not found."))
+}
 X <- 1
 
-time2 <- "3692_2020-04-15_tree-clusters-dm/3692_2020-04-15_thresholds.csv" %>%
-  read.csv(file = ., stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+if (file.exists(tp1_filename)) {
+  time2 <- read.csv(file = tp1_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+}else {
+  stop(paste0("File at \'", tp1_filename, "\' not found."))
+}
 Y <- 2
 
 # isolates at TP2 and not TP1
@@ -174,9 +191,9 @@ lm_df <- tibble(x, y, smoothed1, smoothed5) %>%
   set_colnames(c("x", "Preset values", "Local regression (span 1)", "Local regression (span 5)")) %>%
   melt(id = "x") %>% as_tibble() %>% set_colnames(c("Cluster size", "Function", "Growth"))
 
-{ggplot(lm_df, aes(x = `Cluster size`, y = `Growth`, color = `Function`)) + geom_point() + 
-    theme(legend.position = "bottom") + scale_y_continuous(labels = scales::percent) + 
-    ylab("Growth (%)")} %>% ggplotly()
+# {ggplot(lm_df, aes(x = `Cluster size`, y = `Growth`, color = `Function`)) + geom_point() + 
+#     theme(legend.position = "bottom") + scale_y_continuous(labels = scales::percent) + 
+#     ylab("Growth (%)")} %>% ggplotly()
 ```
 
 The model selection step, and using it to determine what the adaptive threshold function values would be for each input of initial cluster size. Anything that needs to be extrapolated is set to a pre-determined plateau value of percent increase. 
