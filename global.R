@@ -1,11 +1,14 @@
 # Useful functions for data reading and table processing, used in 
 # cluster_sizing.Rmd and in the shiny app
 
-x <- c("tibble", "magrittr", "dplyr", "ggplot2", "reshape2","plotly", "tidyverse", 
-       "DT", "ggpubr", "rcompanion", "fitdistrplus", "logspline", "gamlss",
-       "goftest", "kableExtra", "EnvStats", "pracma", "e1071", "kernlab", "caret", 
-       "LiblineaR", "gridExtra", "transformr", "gifski", "gganimate", "fitdistrplus", 
-       "flexdashboard", "R.utils")
+# x <- c("tibble", "magrittr", "dplyr", "ggplot2", "reshape2","plotly", "tidyverse", 
+#        "DT", "ggpubr", "rcompanion", "fitdistrplus", "logspline", "gamlss",
+#        "goftest", "kableExtra", "EnvStats", "pracma", "e1071", "kernlab", "caret", 
+#        "LiblineaR", "gridExtra", "transformr", "gifski", "gganimate", "fitdistrplus", 
+#        "flexdashboard", "R.utils")
+# lapply(x, require, character.only = TRUE)
+
+x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales")
 lapply(x, require, character.only = TRUE)
 
 get <- .Primitive("[[")
