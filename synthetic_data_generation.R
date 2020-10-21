@@ -80,4 +80,4 @@ t1_cl_over_one <- t1_sizes %>% filter(size > 1) %>% nrow()
 num_ms <- list("ms_t1" = t1_cl_over_one, "ms_t2" = t2_cl_over_one)
 
 print("Note, writing over existing \'synthetic_tp1.csv\'")
-# write.csv(tp1, "data/synthetic_tp1.csv", row.names = FALSE)
+write.csv(tp1, "data/synthetic_tp1.csv", row.names = FALSE)

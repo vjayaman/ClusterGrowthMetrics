@@ -131,8 +131,8 @@ metrics <- sizes_predicted %>%
                  "TP1 cluster size", "TP2 cluster size", "Proportional growth", 
                  "Adaptive threshold", "Fold change (Growth/Threshold)"))
 
-# write.csv(metrics, "all_clusters_table.csv", row.names = FALSE)
-# write.csv(metrics[1:10,], "cluster_metrics_first_ten.csv", row.names = FALSE)
+write.csv(metrics, "data/all_clusters_table.csv", row.names = FALSE)
+write.csv(metrics[1:10,], "data/cluster_metrics_first_ten.csv", row.names = FALSE)
 
 stopwatch[2] <- Sys.time()
 
