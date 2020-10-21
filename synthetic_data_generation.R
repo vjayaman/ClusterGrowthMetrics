@@ -1,33 +1,20 @@
----
-title: "metrics_all_clusters"
-output: html_document
----
-
-```{r setup, include=FALSE}
 stopwatch <- rep(0,2)
 stopwatch[1] <- Sys.time()
 
 source("global.R")
 source("tabulating_functions.R")
-dir.create("data", showWarnings = FALSE)
-
-knitr::opts_chunk$set(echo = TRUE)
-```
 
 ## FOR USER: edit these variables as needed (move all data files to the 'data' directory)
-```{r}
 tp1_filename <- "data/3692_2020-04-15_thresholds.csv"
-```
 
 ## Synthetic dataset development: 
 
-```{r}
 if (file.exists(tp1_filename)) {
   tp2 <- read.csv(tp1_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
 }else {
   stop(paste0("File at \'", tp1_filename, "\' not found."))
 }
-  
+
 melted_tp2 <- melt(tp2, id = "isolate") %>% as_tibble()
 melted_tp2$h <- melted_tp2$variable %>% as.character() %>% gsub("h_", "", .) %>% as.integer()
 colnames(melted_tp2) <- c("isolate", "height", "cluster", "num_h")
@@ -43,19 +30,17 @@ cs_sizes <- lapply(colnames(tp2)[-1], function(h) {
 
 cs_sizes$cluster %<>% as.integer()
 # | isolate | character height | cluster | number height | cluster size |
-  
+
 # Looking at first ~300 heights to identify a useful height for the dropped genome analysis.
 # Plotted along these heights to find a noticeable rise in cluster size before a plateau.
-  
+
 hvals <- colnames(tp2)[2:301]
 isolate_select <- melted_tp2 %>% filter(height %in% hvals)
 cs_select <- cs_sizes %>% filter(height %in% hvals)
-```
 
 ### Plotting cluster numbers and sizes
-Zoom in along the x-axis to see in more detail where the plateaus are.
+# Zoom in along the x-axis to see in more detail where the plateaus are.
 
-```{r}
 # plot_data <- left_join(isolate_select, cs_select, by = c("height", "cluster"))
 # plot_data$height <- factor(plot_data$height, levels = unique(plot_data$height))
 # # plot_data %<>% filter(num_h %in% 150:190)
@@ -64,9 +49,7 @@ Zoom in along the x-axis to see in more detail where the plateaus are.
 #   geom_vline(xintercept = 177, linetype = "dashed") + ylab("Cluster sizes") +
 #   theme(axis.text.x = element_text(angle = 45)) + xlab("Heights") +
 #   ggtitle("Close up of section with height used in synthetic TP1 generation")
-```
 
-```{r dga}
 # Height h_177 was selected, with 493 non-singleton clusters.
 # TP2 clusters and sizes
 h <- "h_177"
@@ -77,17 +60,17 @@ sizes <- t2_height_select %>% pull(h) %>% table() %>% as.data.frame() %>%
 sizes$cluster %<>% as.integer()
 multi_strain <- sizes %>% filter(size > 1)
 t2_cl_over_one <- multi_strain %>% nrow()
-  
+
 # Within those multistrain clusters, 60% of those isolates were randomly selected (1188 such isolates). 
 # We then filter the TP2 dataset to exclude these isolates, this generates the TP1 dataset. Hence, 
 # only 40% of the isolates found in multi-strain clusters at TP2 were originally found in the TP1 dataset.
 x <- 0.6
 tp2_ms <- t2_height_select %>% set_colnames(c("isolate", "cluster")) %>% 
   right_join(., multi_strain, by = "cluster")
-  
+
 isolates_to_rm <- sample(tp2_ms$isolate, round(x*nrow(tp2_ms)))
 tp1 <- tp2 %>% dplyr::filter(!(isolate %in% isolates_to_rm))
-  
+
 # TP2 clusters and sizes
 t1_height_select <- tp1 %>% dplyr::select(isolate, all_of(h))
 t1_sizes <- t1_height_select %>% pull(h) %>% table() %>% 
@@ -98,4 +81,3 @@ num_ms <- list("ms_t1" = t1_cl_over_one, "ms_t2" = t2_cl_over_one)
 
 print("Note, writing over existing \'synthetic_tp1.csv\'")
 # write.csv(tp1, "data/synthetic_tp1.csv", row.names = FALSE)
-```
