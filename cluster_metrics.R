@@ -8,11 +8,18 @@ stopwatch[1] <- Sys.time()
 source("global.R")
 source("tabulating_functions.R")
 
-## FOR USER: edit these variables as needed (move all data files to the 'data' directory)
-# tp2_filename <- "data/3692_2020-04-15_thresholds.csv"
-# 3692_2020-04-15_thresholds.csv
+## FOR USER: edit the variables "file1" and "file2" as needed 
+# All input data sets should be moved to the 'data' directory before running this script
 file2 <- getUserInput("Full file name of TP2 dataset (it should be in the data directory): ")
+tp2_filename <- paste0("data/", file2)
+# e.g. tp2_filename <- "data/3692_2020-04-15_thresholds.csv"
+
 file1 <- getUserInput("Full file name of TP1 dataset (it should be in the data directory): ")
+tp1_filename <- paste0("data/", file1)
+
+# Uncomment the following two lines if you don't want to input the filenames every time:
+# file2 <- "european-t2_clusters.csv" 
+# file1 <- "european-t1_clusters.csv"
 
 print("If you do not see a success message after a few minutes, please see the log file(s).")
 
@@ -67,7 +74,7 @@ setTxtProgressBar(pb, 25)
 message("Reorganizing time point data for later merging")
 # Melted time1 data: || isolate | height | cluster | id (height_cluster) ||
 df1 <- melt(time1, id = "isolate") %>% as_tibble() %>% set_colnames(c("isolate", "height", "cluster"))
-df1$height %<>% as.character()
+df1$height <- df1$height %>% as.character()
 df1$id <- paste0(df1$height, "-", df1$cluster)
 df1_sizes <- df1 %>% set_colnames(c("Isolate", "TP1_h", "TP1_cl", "ID")) %>% 
   left_join(., sizes_for_tpX, by = c("TP1_h", "TP1_cl", "ID"))
@@ -75,7 +82,7 @@ setTxtProgressBar(pb, 30)
 
 # Melted time2 data: || isolate | height | cluster | id (height_cluster) ||
 df2 <- melt(time2, id = "isolate") %>% as_tibble() %>% set_colnames(c("isolate", "height", "cluster"))
-df2$height %<>% as.character()
+df2$height <- df2$height %>% as.character()
 df2$id <- paste0(df2$height, "-", df2$cluster)
 df2_sizes <- df2 %>% set_colnames(c("Isolate", "TP2_h", "TP2_cl", "ID")) %>% 
   left_join(., sizes_for_tpY, by = c("TP2_h", "TP2_cl", "ID"))
@@ -87,7 +94,12 @@ setTxtProgressBar(pb, 35)
 message("Merging time point data for comparison")
 df_all <- right_join(df1_sizes, df2_sizes, by = c("Isolate", "ID"))
 
+# Removing (large) datasets no longer needed
+rm(df1_sizes); rm(df2_sizes); rm(df1); rm(df2)
+
 all_clusters <- df_all %>% dplyr::select(Isolate, TP1_h, TP1_cl, TP2_h, TP2_cl, TP1_cl_size, TP2_cl_size)
+rm(df_all)
+
 all_clusters$TP1_cl_size[is.na(all_clusters$TP1_cl_size)] <- 0
 setTxtProgressBar(pb, 40)
 
@@ -96,6 +108,7 @@ all_clusters$prop_inc <- NA
 all_clusters$prop_inc[all_clusters$TP1_cl_size == 0] <- 1
 inds <- which(all_clusters$TP1_cl_size != 0)
 all_clusters$prop_inc[inds] <- (all_clusters$TP2_cl_size[inds] - all_clusters$TP1_cl_size[inds]) / all_clusters$TP1_cl_size[inds]
+rm(inds)
 setTxtProgressBar(pb, 45)
 
 ## Adaptive threshold development
@@ -137,9 +150,11 @@ na_predicted <- all_clusters$TP1_cl_size[which(is.na(predicted_y))]
 if (all(na_predicted > max(lm_df$`Cluster size`))) {
   predicted_y[is.na(predicted_y)] <- 15
 }
+rm(na_predicted)
 setTxtProgressBar(pb, 55)
 
 sizes_predicted <- predicted_y %>% round() %>% bind_cols(all_clusters, predicted = .)
+rm(all_clusters); rm(predicted_y)
 sizes_predicted$predicted <- sizes_predicted$predicted*0.01
 
 ## Fold change
@@ -148,13 +163,14 @@ sizes_predicted$predicted <- sizes_predicted$predicted*0.01
 # the current working directory. 
 message("Comparing actual fold change to predicted change, for clusters")
 sizes_predicted$fold_change <- sizes_predicted$prop_inc / sizes_predicted$predicted
-sizes_predicted$fold_change %<>% round(., digits = 3)
-sizes_predicted %<>% arrange(., -fold_change)
+sizes_predicted$fold_change <- sizes_predicted$fold_change %>% round(., digits = 3)
+sizes_predicted <- sizes_predicted %>% arrange(., -fold_change)
 setTxtProgressBar(pb, 60)
 
-message("Formatting data for tables, adjusting column headers")
-sizes_predicted$predicted %<>% scales::percent()
-sizes_predicted$prop_inc %<>% scales::percent()
+message("Formatting data for tables, adjusting column headers - part 1")
+sizes_predicted$predicted <- sizes_predicted$predicted %>% scales::percent()
+message("Formatting data for tables, adjusting column headers - part 2")
+sizes_predicted$prop_inc <- sizes_predicted$prop_inc %>% scales::percent()
 setTxtProgressBar(pb, 65)
 
 metrics <- sizes_predicted %>% 
