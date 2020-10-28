@@ -48,7 +48,7 @@ clusterSizes <- function(clusters, tp_val) {
   df1 <- clusters %>% dplyr::select(-isolate)
   cs_sizes <- lapply(1:ncol(df1), function(i) {
     
-    if (i %% 200 == 0) {paste0(i, "/", ncol(df1)) %>% print()}
+    # if (i %% 200 == 0) {paste0(i, "/", ncol(df1)) %>% print()}
     
     h_x <- colnames(df1)[i]
     
@@ -61,7 +61,7 @@ clusterSizes <- function(clusters, tp_val) {
   }) %>% bind_rows()
   
   cs_sizes$id <- paste0(cs_sizes$height, "-", cs_sizes$cluster)
-  paste0("Done collecting cluster sizes for time point ", tp_val) %>% print()
+  # paste0("Done collecting cluster sizes for time point ", tp_val) %>% print()
   
   return(cs_sizes)
 }
@@ -100,6 +100,10 @@ boxplotSubset <- function(df, title_sec) {
     ggtitle(paste0("Change in cluster across thresholds", title_sec)) %>% return()
 }
 
+getUserInput <- function(msg) {
+  cat(msg)
+  op = readLines(con = "stdin", 1)
+}
 # print("---End of global---")
 
 

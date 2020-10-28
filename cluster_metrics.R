@@ -9,8 +9,13 @@ source("global.R")
 source("tabulating_functions.R")
 
 ## FOR USER: edit these variables as needed (move all data files to the 'data' directory)
-tp2_filename <- "data/3692_2020-04-15_thresholds.csv"
-tp1_filename <- "data/synthetic_tp1.csv"
+# tp2_filename <- "data/3692_2020-04-15_thresholds.csv"
+tp2_filename <- getUserInput("Full file name of TP2 dataset (it should be in the data directory): ") %>% 
+  paste0("data/", .)
+tp1_filename <- getUserInput("Full file name of TP1 dataset (it should be in the data directory): ") %>% 
+  paste0("data/", .)
+
+pb <- txtProgressBar(min = 0, max = 75, initial = 5, style = 3)
 
 # Then, using the same height for comparison, there are 215 multi-strain clusters at TP1. So the 
 # number of multi-strain clusters grew by `r ((t2_cl_over_one - t1_cl_over_one)/t2_cl_over_one) %>% 
@@ -24,12 +29,16 @@ if (file.exists(tp1_filename)) {
 }
 X <- 1
 
+setTxtProgressBar(pb, 10)
+
 if (file.exists(tp2_filename)) {
   time2 <- read.csv(file = tp2_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
 }else {
   stop(paste0("File at \'", tp2_filename, "\' not found."))
 }
 Y <- 2
+
+setTxtProgressBar(pb, 15)
 
 # isolates at TP2 and not TP1
 novel_isolates <- setdiff(time2$isolate, time1$isolate)
@@ -39,11 +48,13 @@ isolates_t1 <- time1$isolate
 isolates_t2 <- time2$isolate
 
 # Dataframes of the clusters at each time point and their associated sizes (easier for data retrieval later on).
-
 sizes_for_tpX <- clusterSizes(time1, "1") %>% 
   set_colnames(c("TP1_h", "TP1_cl", "TP1_cl_size", "ID"))
+setTxtProgressBar(pb, 20)
+
 sizes_for_tpY <- clusterSizes(time2, "2") %>% 
   set_colnames(c("TP2_h", "TP2_cl", "TP2_cl_size", "ID"))
+setTxtProgressBar(pb, 25)
 
 # Reorganizing the data so the time points can be merged simply
 
@@ -53,6 +64,7 @@ df1$height %<>% as.character()
 df1$id <- paste0(df1$height, "-", df1$cluster)
 df1_sizes <- df1 %>% set_colnames(c("Isolate", "TP1_h", "TP1_cl", "ID")) %>% 
   left_join(., sizes_for_tpX, by = c("TP1_h", "TP1_cl", "ID"))
+setTxtProgressBar(pb, 30)
 
 # Melted time2 data: || isolate | height | cluster | id (height_cluster) ||
 df2 <- melt(time2, id = "isolate") %>% as_tibble() %>% set_colnames(c("isolate", "height", "cluster"))
@@ -60,6 +72,7 @@ df2$height %<>% as.character()
 df2$id <- paste0(df2$height, "-", df2$cluster)
 df2_sizes <- df2 %>% set_colnames(c("Isolate", "TP2_h", "TP2_cl", "ID")) %>% 
   left_join(., sizes_for_tpY, by = c("TP2_h", "TP2_cl", "ID"))
+setTxtProgressBar(pb, 35)
 
 # The foundational frame of cluster data:
 #   - sizes and membership at each time point, 
@@ -69,11 +82,13 @@ df_all <- right_join(df1_sizes, df2_sizes, by = c("Isolate", "ID"))
 
 all_clusters <- df_all %>% dplyr::select(Isolate, TP1_h, TP1_cl, TP2_h, TP2_cl, TP1_cl_size, TP2_cl_size)
 all_clusters$TP1_cl_size[is.na(all_clusters$TP1_cl_size)] <- 0
+setTxtProgressBar(pb, 40)
 
 all_clusters$prop_inc <- NA
 all_clusters$prop_inc[all_clusters$TP1_cl_size == 0] <- 1
 inds <- which(all_clusters$TP1_cl_size != 0)
 all_clusters$prop_inc[inds] <- (all_clusters$TP2_cl_size[inds] - all_clusters$TP1_cl_size[inds]) / all_clusters$TP1_cl_size[inds]
+setTxtProgressBar(pb, 45)
 
 ## Adaptive threshold development
 
@@ -95,6 +110,7 @@ smoothed5 <- predict(loessMod5)
 lm_df <- tibble(x, y, smoothed1, smoothed5) %>%
   set_colnames(c("x", "Preset values", "Local regression (span 1)", "Local regression (span 5)")) %>%
   melt(id = "x") %>% as_tibble() %>% set_colnames(c("Cluster size", "Function", "Growth"))
+setTxtProgressBar(pb, 50)
 
 # {ggplot(lm_df, aes(x = `Cluster size`, y = `Growth`, color = `Function`)) + geom_point() + 
 #     theme(legend.position = "bottom") + scale_y_continuous(labels = scales::percent) + 
@@ -113,6 +129,7 @@ na_predicted <- all_clusters$TP1_cl_size[which(is.na(predicted_y))]
 if (all(na_predicted > max(lm_df$`Cluster size`))) {
   predicted_y[is.na(predicted_y)] <- 15
 }
+setTxtProgressBar(pb, 55)
 
 sizes_predicted <- predicted_y %>% round() %>% bind_cols(all_clusters, predicted = .)
 sizes_predicted$predicted <- sizes_predicted$predicted*0.01
@@ -125,21 +142,27 @@ sizes_predicted$predicted <- sizes_predicted$predicted*0.01
 sizes_predicted$fold_change <- sizes_predicted$prop_inc / sizes_predicted$predicted
 sizes_predicted$fold_change %<>% round(., digits = 3)
 sizes_predicted %<>% arrange(., -fold_change)
+setTxtProgressBar(pb, 60)
 
 sizes_predicted$predicted %<>% scales::percent()
 sizes_predicted$prop_inc %<>% scales::percent()
+setTxtProgressBar(pb, 65)
 
 metrics <- sizes_predicted %>% 
   set_colnames(c("Isolate", "TP1 height", "TP1 cluster", "TP2 height", "TP2 cluster", 
                  "TP1 cluster size", "TP2 cluster size", "Proportional growth", 
                  "Adaptive threshold", "Fold change (Growth/Threshold)"))
+setTxtProgressBar(pb, 70)
 
 write.csv(metrics, "data/all_clusters_table.csv", row.names = FALSE)
 write.csv(metrics[1:10,], "data/cluster_metrics_first_ten.csv", row.names = FALSE)
+setTxtProgressBar(pb, 75)
+close(pb)
 
 stopwatch[2] <- Sys.time()
 
-paste0("It takes ", round((stopwatch[2]-stopwatch[1])/60, digits = 2), " minutes to run.") %>% print()
+paste0("Metrics generated in ", round((stopwatch[2]-stopwatch[1])/60, digits = 2), 
+       " minutes (saved to the \'data\' directory).") %>% print()
 
 # reset message sink
 # shutdown connection to file (close)
