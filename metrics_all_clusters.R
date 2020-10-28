@@ -1,3 +1,7 @@
+# sending errors and warnings to the log file
+zz <- file("log.Rout", open="wt")
+sink(zz, type="message")
+
 stopwatch <- rep(0,2)
 stopwatch[1] <- Sys.time()
 
@@ -5,26 +9,25 @@ source("global.R")
 source("tabulating_functions.R")
 
 ## FOR USER: edit these variables as needed (move all data files to the 'data' directory)
-tp1_filename <- "data/3692_2020-04-15_thresholds.csv"
+tp2_filename <- "data/3692_2020-04-15_thresholds.csv"
+tp1_filename <- "data/synthetic_tp1.csv"
 
 # Then, using the same height for comparison, there are 215 multi-strain clusters at TP1. So the 
 # number of multi-strain clusters grew by `r ((t2_cl_over_one - t1_cl_over_one)/t2_cl_over_one) %>% 
 # scales::percent()`.
 
 ## Cluster metric generation
-
-synthetic_filename <- "data/synthetic_tp1.csv"
-if (file.exists(synthetic_filename)) {
-  time1 <- read.csv(file = synthetic_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+if (file.exists(tp1_filename)) {
+  time1 <- read.csv(file = tp1_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
 }else {
-  stop(paste0("File at \'", synthetic_filename, "\' not found."))
+  stop(paste0("File at \'", tp1_filename, "\' not found."))
 }
 X <- 1
 
-if (file.exists(tp1_filename)) {
-  time2 <- read.csv(file = tp1_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+if (file.exists(tp2_filename)) {
+  time2 <- read.csv(file = tp2_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
 }else {
-  stop(paste0("File at \'", tp1_filename, "\' not found."))
+  stop(paste0("File at \'", tp2_filename, "\' not found."))
 }
 Y <- 2
 
@@ -137,4 +140,9 @@ write.csv(metrics[1:10,], "data/cluster_metrics_first_ten.csv", row.names = FALS
 stopwatch[2] <- Sys.time()
 
 paste0("It takes ", round((stopwatch[2]-stopwatch[1])/60, digits = 2), " minutes to run.") %>% print()
+
+# reset message sink
+# shutdown connection to file (close)
+sink(type="message")
+close(zz)
 

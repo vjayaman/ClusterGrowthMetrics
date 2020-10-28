@@ -5,14 +5,14 @@ source("global.R")
 source("tabulating_functions.R")
 
 ## FOR USER: edit these variables as needed (move all data files to the 'data' directory)
-tp1_filename <- "data/3692_2020-04-15_thresholds.csv"
+tp2_filename <- "data/3692_2020-04-15_thresholds.csv"
 
 ## Synthetic dataset development: 
 
-if (file.exists(tp1_filename)) {
-  tp2 <- read.csv(tp1_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+if (file.exists(tp2_filename)) {
+  tp2 <- read.csv(tp2_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
 }else {
-  stop(paste0("File at \'", tp1_filename, "\' not found."))
+  stop(paste0("File at \'", tp2_filename, "\' not found."))
 }
 
 melted_tp2 <- melt(tp2, id = "isolate") %>% as_tibble()
