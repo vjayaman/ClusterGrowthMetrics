@@ -1,6 +1,6 @@
 # sending errors and warnings to the log file
-zz <- file("log.Rout", open="wt")
-sink(zz, type="message")
+msg <- file("logfile.txt", open="wt")
+sink(msg, type="message")
 
 stopwatch <- rep(0,2)
 stopwatch[1] <- Sys.time()
@@ -10,11 +10,16 @@ source("tabulating_functions.R")
 
 ## FOR USER: edit these variables as needed (move all data files to the 'data' directory)
 # tp2_filename <- "data/3692_2020-04-15_thresholds.csv"
-tp2_filename <- getUserInput("Full file name of TP2 dataset (it should be in the data directory): ") %>% 
-  paste0("data/", .)
-tp1_filename <- getUserInput("Full file name of TP1 dataset (it should be in the data directory): ") %>% 
-  paste0("data/", .)
+# 3692_2020-04-15_thresholds.csv
+file2 <- getUserInput("Full file name of TP2 dataset (it should be in the data directory): ")
+file1 <- getUserInput("Full file name of TP1 dataset (it should be in the data directory): ")
 
+print("If you do not see a success message after a few minutes, please see the log file(s).")
+
+tp2_filename <- paste0("data/", file2)
+tp1_filename <- paste0("data/", file1)
+
+message("Loaded datafiles")
 pb <- txtProgressBar(min = 0, max = 75, initial = 5, style = 3)
 
 # Then, using the same height for comparison, there are 215 multi-strain clusters at TP1. So the 
@@ -28,7 +33,7 @@ if (file.exists(tp1_filename)) {
   stop(paste0("File at \'", tp1_filename, "\' not found."))
 }
 X <- 1
-
+message("Successfully read TP1 data")
 setTxtProgressBar(pb, 10)
 
 if (file.exists(tp2_filename)) {
@@ -37,7 +42,7 @@ if (file.exists(tp2_filename)) {
   stop(paste0("File at \'", tp2_filename, "\' not found."))
 }
 Y <- 2
-
+message("Successfully read TP2 data")
 setTxtProgressBar(pb, 15)
 
 # isolates at TP2 and not TP1
@@ -48,16 +53,18 @@ isolates_t1 <- time1$isolate
 isolates_t2 <- time2$isolate
 
 # Dataframes of the clusters at each time point and their associated sizes (easier for data retrieval later on).
+message("Collecting cluster sizes for TP1")
 sizes_for_tpX <- clusterSizes(time1, "1") %>% 
   set_colnames(c("TP1_h", "TP1_cl", "TP1_cl_size", "ID"))
 setTxtProgressBar(pb, 20)
 
+message("Collecting cluster sizes for TP2")
 sizes_for_tpY <- clusterSizes(time2, "2") %>% 
   set_colnames(c("TP2_h", "TP2_cl", "TP2_cl_size", "ID"))
 setTxtProgressBar(pb, 25)
 
 # Reorganizing the data so the time points can be merged simply
-
+message("Reorganizing time point data for later merging")
 # Melted time1 data: || isolate | height | cluster | id (height_cluster) ||
 df1 <- melt(time1, id = "isolate") %>% as_tibble() %>% set_colnames(c("isolate", "height", "cluster"))
 df1$height %<>% as.character()
@@ -77,13 +84,14 @@ setTxtProgressBar(pb, 35)
 # The foundational frame of cluster data:
 #   - sizes and membership at each time point, 
 #   - as well as the proportional increase from TP1 to TP2, in decimal form
-
+message("Merging time point data for comparison")
 df_all <- right_join(df1_sizes, df2_sizes, by = c("Isolate", "ID"))
 
 all_clusters <- df_all %>% dplyr::select(Isolate, TP1_h, TP1_cl, TP2_h, TP2_cl, TP1_cl_size, TP2_cl_size)
 all_clusters$TP1_cl_size[is.na(all_clusters$TP1_cl_size)] <- 0
 setTxtProgressBar(pb, 40)
 
+message("Preparing proportion data")
 all_clusters$prop_inc <- NA
 all_clusters$prop_inc[all_clusters$TP1_cl_size == 0] <- 1
 inds <- which(all_clusters$TP1_cl_size != 0)
@@ -97,6 +105,7 @@ setTxtProgressBar(pb, 45)
 # Currently being used to model synthetic data, and what we might expect significant 
 # size change to look like. 
 
+message("Running local regression steps for adaptive threshold development")
 x <- c(1, 25, 50, 100, 150)
 y <- c(300, 150, 75, 30, 15)
 
@@ -122,7 +131,6 @@ setTxtProgressBar(pb, 50)
 
 model_used <- loessMod1
 # predict.lm(model_used, data.frame(x = 30)) # note there are different types of prediction methods
-
 predicted_y <- predict(model_used, newdata = all_clusters$TP1_cl_size)
 na_predicted <- all_clusters$TP1_cl_size[which(is.na(predicted_y))]
 
@@ -138,12 +146,13 @@ sizes_predicted$predicted <- sizes_predicted$predicted*0.01
 # Ranking the data by the actual proportional change over the adaptive threshold requirement, 
 # to see by how much each cluster exceeds the growth prediction. The data is then saved to 
 # the current working directory. 
-
+message("Comparing actual fold change to predicted change, for clusters")
 sizes_predicted$fold_change <- sizes_predicted$prop_inc / sizes_predicted$predicted
 sizes_predicted$fold_change %<>% round(., digits = 3)
 sizes_predicted %<>% arrange(., -fold_change)
 setTxtProgressBar(pb, 60)
 
+message("Formatting data for tables, adjusting column headers")
 sizes_predicted$predicted %<>% scales::percent()
 sizes_predicted$prop_inc %<>% scales::percent()
 setTxtProgressBar(pb, 65)
@@ -154,6 +163,7 @@ metrics <- sizes_predicted %>%
                  "Adaptive threshold", "Fold change (Growth/Threshold)"))
 setTxtProgressBar(pb, 70)
 
+message("Writing data to files")
 write.csv(metrics, "data/all_clusters_table.csv", row.names = FALSE)
 write.csv(metrics[1:10,], "data/cluster_metrics_first_ten.csv", row.names = FALSE)
 setTxtProgressBar(pb, 75)
@@ -161,11 +171,11 @@ close(pb)
 
 stopwatch[2] <- Sys.time()
 
-paste0("Metrics generated in ", round((stopwatch[2]-stopwatch[1])/60, digits = 2), 
+paste0("Success: metrics generated in ", round((stopwatch[2]-stopwatch[1])/60, digits = 2), 
        " minutes (saved to the \'data\' directory).") %>% print()
 
 # reset message sink
 # shutdown connection to file (close)
-sink(type="message")
-close(zz)
-
+# sink(type="message")
+message("Closing all connections")
+closeAllConnections()
