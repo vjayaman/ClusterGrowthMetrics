@@ -1,20 +1,24 @@
+#! /usr/bin/env Rscript
 
+# This should be run first, to make sure the required packages are installed
+msg <- file("logfile_env.txt", open="wt")
+sink(msg, type="message")
 
-require("tibble")
-require("magrittr")
-require("dplyr")
-require("reshape2")
-require("scales")
+pb <- txtProgressBar(min = 0, max = 4, initial = 1, style = 3)
 
-dir.create("data", showWarnings = FALSE)
+message(paste0("For reporting an issue, see https://github.com/vjayaman/ClusterGrowthMetrics/issues.\n"))
 
-# Now move the data you want to use to the newly created "data" directory
+required_packages <- c("tibble", "magrittr", "dplyr", "reshape2", "scales")
+not_installed <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
+setTxtProgressBar(pb, 2)
 
-checkDirInput <- function() {
-  cat(paste0("Please move any data files you\'d like ",
-             "to use to the newly created \'data\' directory. ",
-             "Hit Enter to continue."))
-  msg = readLines(con = "stdin", 1)
-}
+install.packages(not_installed, quiet = TRUE)
+setTxtProgressBar(pb, 4)
 
-checkDirInput()
+# Testing packages were installed correctly:
+library(required_packages, character.only = TRUE, quietly = TRUE)
+
+dir.create("outputs", showWarnings = FALSE)
+
+cat("Environment set up successful.")
+# sink()
