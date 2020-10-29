@@ -104,7 +104,15 @@ getUserInput <- function(msg) {
   cat(msg)
   op = readLines(con = "stdin", 1)
 }
-# print("---End of global---")
+
+# checkDirInput <- function() {
+#   cat(paste0("Please move any data files you\'d like ",
+#              "to use to the newly created \'data\' directory. ",
+#              "Hit Enter to continue."))
+#   msg = readLines(con = "stdin", 1)
+# }
+# 
+# checkDirInput()
 
 
 
