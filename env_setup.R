@@ -16,9 +16,8 @@ install.packages(not_installed, quiet = TRUE)
 setTxtProgressBar(pb, 4)
 
 # Testing packages were installed correctly:
-library(required_packages, character.only = TRUE, quietly = TRUE)
-
+x <- lapply(required_packages, require, character.only = TRUE)
 dir.create("outputs", showWarnings = FALSE)
 
-cat("Environment set up successful.")
+cat("\nEnvironment set up successful.\n")
 # sink()
