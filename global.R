@@ -1,5 +1,5 @@
 # Useful functions for data reading and table processing, used in 
-# cluster_sizing.Rmd and in the shiny app
+# all of the scripts in this project
 
 # x <- c("tibble", "magrittr", "dplyr", "ggplot2", "reshape2","plotly", "tidyverse", 
 #        "DT", "ggpubr", "rcompanion", "fitdistrplus", "logspline", "gamlss",

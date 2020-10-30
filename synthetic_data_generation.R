@@ -1,11 +1,18 @@
+
+# SUMMARY: this is the script for generating a time point 1 dataset (with a pre-determined rate of growth), 
+#   given a time point 2 dataset 
+#   - the time point 2 dataset should have one column "isolate" with labels for the genomes followed by 
+#   a series of columns with cluster assignments at each threshold, and should be able to be read by:
+#     read.csv(tp2_filename, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+
 stopwatch <- rep(0,2)
 stopwatch[1] <- Sys.time()
 
 source("global.R")
 source("tabulating_functions.R")
 
-## FOR USER: edit these variables as needed (move all data files to the 'data' directory)
-tp2_filename <- "data/3692_2020-04-15_thresholds.csv"
+## FOR USER: edit these variables as needed
+tp2_filename <- "data/testing/3692_2020-04-15_thresholds.csv"
 
 ## Synthetic dataset development: 
 
@@ -80,4 +87,4 @@ t1_cl_over_one <- t1_sizes %>% filter(size > 1) %>% nrow()
 num_ms <- list("ms_t1" = t1_cl_over_one, "ms_t2" = t2_cl_over_one)
 
 print("Note, writing over existing \'synthetic_tp1.csv\'")
-write.csv(tp1, "data/synthetic_tp1.csv", row.names = FALSE)
+write.csv(tp1, "synthetic_tp1.csv", row.names = FALSE)

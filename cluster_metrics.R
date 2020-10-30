@@ -1,6 +1,13 @@
 #! /usr/bin/env Rscript
 input_args = commandArgs(trailingOnly = TRUE)
 
+# SUMMARY: this is the script for generating the cluster metrics, given input files for two time points
+# 	- each time point dataset should be a file that can be read with the following statement 
+# 	      read.csv(file = tp1_filename, stringsAsFactors = FALSE, numerals = "no.loss")
+# 	  and should be composed of a single column with name "isolate" followed by a series of columns with 
+# 	  cluster assignments at each of the thresholds
+# 	- it may take some time if either time point dataset is very very large (>> 6000 genomes)
+
 # sending errors and warnings to the log file
 msg <- file("logfile_metrics.txt", open="wt")
 sink(msg, type="message")
