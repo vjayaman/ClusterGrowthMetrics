@@ -4,6 +4,8 @@
 # # 	  and should be composed of a single column with name "isolate" followed by a series of columns with 
 # # 	  cluster assignments at each of the thresholds
 # # 	- it may take some time if either time point dataset is very very large (>> 6000 genomes)
+#     - note that we only really use the cluster assignments of the TP2 dataset
+#     - the TP1 data is used to identify which isolotes are the "original isolates" and not novel to TP2
 # 
 
 source("global.R")
@@ -29,33 +31,26 @@ if (is.na(tp2_filename)) {
 }
 Y <- 2
 
-# # isolates at TP2 and not TP1
-# novel_isolates <- setdiff(time2$isolate, time1$isolate)
-# # isolates at TP1
-# isolates_t1 <- time1$isolate
-# # isolates at TP2
-# isolates_t2 <- time2$isolate
-
-# -------------------------------------------------------------------------------------------------
-# metric_data <- read.csv("../outputs/all_clusters_table.csv", stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
-# metric_data <- metric_data %>% set_colnames(c("isolate", "hX", "tpX_clusters", "hY", "tpY_clusters", 
-#                                               "tpX_sizes", "tpY_sizes", "prop_growth", "adap_thresh", 
-#                                               "fold_change"))
+# isolates found at TP1
 isolates_tp1 <- time1$isolate
 
+# isolates found at TP2
 isolates_tp2 <- time2$isolate
 
+# isolates introduced at TP2 (novel isolates)
 new_isolates <- setdiff(isolates_tp2, isolates_tp1)
 
 metrics_setup <- melt(time2, id = "isolate") %>% as_tibble() %>% 
   set_colnames(c("isolate", "height", "cluster"))
 metrics_setup$height %<>% as.character()
 
-
+# total cluster sizes for the TP2 dataset
 sizes_for_tpY <- clusterSizes(time2) %>%
   set_colnames(c("height", "cluster", "TP2_cl_size", "ID"))
 sizes_for_tpY$cluster %<>% as.character()
 
+# general metrics for TP2 so far - sizes
+# ordered by height and then column
 tpY_data <- merge(metrics_setup, sizes_for_tpY) %>% as_tibble() %>% 
   dplyr::select(isolate, height, cluster, TP2_cl_size, ID)
 tpY_data$height %<>% as.integer()
@@ -71,30 +66,32 @@ novel_ms_clusters <- tpY_data %>%
 original_ms_clusters <- tpY_data %>% 
   dplyr::filter(TP2_cl_size > 1) %>% 
   dplyr::filter(!(isolate %in% new_isolates))
-  
-# singles <- tpY_data %>% dplyr::filter(TP2_cl_size <= 1) # DON'T FORGET THESE
 
-# # multi-strain clusters at TP2 that contain both novels and originals
+# NOTE: not looking at singletons at this point, will bring them back in later
+
+# multi-strain clusters at TP2 that contain both novels and originals
+# i.e. clusters that existed before the novels were added
+# consider these KEY CLUSTERS
 nmc_ids <- novel_ms_clusters %>% dplyr::select(-isolate) %>% unique()
 omc_ids <- original_ms_clusters %>% dplyr::select(-isolate) %>% unique()
 both_ms_clusters <- merge(nmc_ids, omc_ids) %>% as_tibble()
-# just_one_ids <- setdiff(unique(c(nmc_ids$ID, omc_ids$ID)), both_ms_clusters$ID)
-# just_one_clusters <- full_join(nmc_ids, omc_ids) %>% 
-#   dplyr::filter(ID %in% just_one_ids)
 
+# counting the number of novel isolates in each key cluster
 novel_sizes <- left_join(both_ms_clusters, novel_ms_clusters) %>% 
   dplyr::select(isolate, height, cluster, TP2_cl_size, ID) %>% 
   dplyr::group_by(height, cluster) %>% 
   dplyr::summarise(n = n()) %>% 
   set_colnames(c("height", "cluster", "num_novels"))
-  
 
+# counting the number of original isolates in each key cluster
 original_sizes <- left_join(both_ms_clusters, original_ms_clusters) %>% 
   dplyr::select(isolate, height, cluster, TP2_cl_size, ID) %>% 
   dplyr::group_by(height, cluster) %>% 
   dplyr::summarise(n = n()) %>% 
   set_colnames(c("height", "cluster", "num_originals"))
 
+# going to use actual TP2 size and the numbers of novels and original isolates in each cluster 
+# to identify the change in theoretical cluster size
 size_difs <- merge(novel_sizes, original_sizes, by = c("height", "cluster")) %>% as_tibble()
 size_difs$height %<>% as.character()
 size_difs$cluster %<>% as.character()
@@ -107,32 +104,33 @@ size_difs <- sizes_for_tpY %>% dplyr::select(-ID) %>%
   set_colnames(c("TP2_h", "TP2_cl", "TP2_cl_size", "number_original", "number_novels"))
 size_difs$ID <- paste0(size_difs$TP2_h, "-", size_difs$TP2_cl)
 
-all_clusters <- tpY_data %>% set_colnames(c("isolate", "TP2_h", "TP2_cl", "TP2_cl_size", "ID")) %>% 
-  ungroup()
+# the cluster assignments for each isolate
+all_clusters <- tpY_data %>% set_colnames(c("isolate", "TP2_h", "TP2_cl", "TP2_cl_size", "ID")) %>% ungroup()
 all_clusters$TP2_h %<>% as.character()
 all_clusters$TP2_cl %<>% as.character()
 
+# OUR METRICS FILE: will be adding to this one further
 a1 <- left_join(all_clusters, size_difs)
 
-# singletons made of novel isolates
+# adding back in: singletons made of novel isolates
 inds1 <- which(a1$TP2_cl_size == 1 & a1$isolate %in% new_isolates)
 a1$number_original[inds1] <- 0
 a1$number_novels[inds1] <- 1
 
-# singletons made of original isolates
+# adding back in: singletons made of original isolates
 inds2 <- which(a1$TP2_cl_size == 1 & !(a1$isolate %in% new_isolates))
 a1$number_original[inds2] <- 1
 a1$number_novels[inds2] <- 0
 
-# clusters that don't absorb any novels or are composed of only novels
+# adding back in: clusters that don't absorb any novels or are composed of only novels
 inds3 <- a1[is.na(a1$number_original),] %>% pull(ID) %>% unique() %>% sort()
 just_one_ids <- setdiff(unique(c(nmc_ids$ID, omc_ids$ID)), both_ms_clusters$ID) %>% sort()
 test_for_leftovers <- identical(inds3, just_one_ids) # if TRUE, then we've accounted for all cases
-  # composed of only novels:
+# composed of only novels:
 inds3a <- which(is.na(a1$number_original) & (a1$isolate %in% new_isolates))
 a1$number_original[inds3a] <- 0
 a1$number_novels[inds3a] <- a1$TP2_cl_size[inds3a]
-  # don't absorb any novels:
+# don't absorb any novels:
 inds3b <- which(is.na(a1$number_original) & !(a1$isolate %in% new_isolates))
 a1$number_original[inds3b] <- a1$TP2_cl_size[inds3b]
 a1$number_novels[inds3b] <- 0
@@ -194,9 +192,7 @@ sizes_predicted$fold_change <- sizes_predicted$prop_inc / sizes_predicted$predic
 sizes_predicted$fold_change <- sizes_predicted$fold_change %>% round(., digits = 3)
 sizes_predicted <- sizes_predicted %>% arrange(., -fold_change)
 
-
 sizes_predicted$predicted <- sizes_predicted$predicted %>% scales::percent()
-
 sizes_predicted$prop_inc <- sizes_predicted$prop_inc %>% scales::percent()
 
 metrics <- sizes_predicted %>% 
