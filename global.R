@@ -44,7 +44,7 @@ isolateClusterSize <- function(clusters, sizes) {
   return(df_both)
 }
 
-clusterSizes <- function(clusters, tp_val) {
+clusterSizes <- function(clusters) { #tp_val
   df1 <- clusters %>% dplyr::select(-isolate)
   cs_sizes <- lapply(1:ncol(df1), function(i) {
     

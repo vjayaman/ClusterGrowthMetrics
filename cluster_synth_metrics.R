@@ -1,0 +1,194 @@
+#! /usr/bin/env Rscript
+input_args = commandArgs(trailingOnly = TRUE)
+
+# SUMMARY: this is the script for generating the cluster metrics, given input files for two time points
+# 	- each time point dataset should be a file that can be read with the following statement 
+# 	      read.csv(file = tp1_filename, stringsAsFactors = FALSE, numerals = "no.loss")
+# 	  and should be composed of a single column with name "isolate" followed by a series of columns with 
+# 	  cluster assignments at each of the thresholds
+# 	- it may take some time if either time point dataset is very very large (>> 6000 genomes)
+
+# sending errors and warnings to the log file
+msg <- file("logfile_metrics.txt", open="wt")
+sink(msg, type="message")
+
+stopwatch <- rep(0,2)
+stopwatch[1] <- Sys.time()
+
+message("\n------------------ Cluster metric generation ------------------\n")
+
+source("global.R")
+source("tabulating_functions.R")
+
+## FOR USER: replace the filename variables with quoted file paths if you don't want to input them each time
+message("Loading datafiles")
+tp1_filename <- input_args[1]      # "european-t1_clusters.csv"
+tp2_filename <- input_args[2]      # "european-t2_clusters.csv"
+
+cat(paste0("\nIf the progress bar does not reach 100% after a few minutes, ", 
+           "with a success message following, please see the log file.\n"))
+
+pb <- txtProgressBar(min = 0, max = 75, initial = 5, style = 3)
+
+## Cluster metric generation
+if (is.na(tp1_filename)) {
+  stop(paste0("Time point 1 dataset not found."))
+}else {
+  time1 <- read.csv(file = tp1_filename, stringsAsFactors = FALSE, numerals = "no.loss", check.names = FALSE) %>% as_tibble()
+}
+X <- 1
+message("Successfully read TP1 data")
+setTxtProgressBar(pb, 10)
+
+if (is.na(tp2_filename)) {
+  stop(paste0("Time point 2 dataset not found."))
+}else {
+  time2 <- read.csv(file = tp2_filename, stringsAsFactors = FALSE, numerals = "no.loss", check.names = FALSE) %>% as_tibble()
+}
+Y <- 2
+message("Successfully read TP2 data")
+setTxtProgressBar(pb, 15)
+
+# isolates at TP2 and not TP1
+novel_isolates <- setdiff(time2$isolate, time1$isolate)
+# isolates at TP1
+isolates_t1 <- time1$isolate
+# isolates at TP2
+isolates_t2 <- time2$isolate
+
+# Dataframes of the clusters at each time point and their associated sizes (easier for data retrieval later on).
+message("Collecting cluster sizes for TP1")
+sizes_for_tpX <- clusterSizes(time1, "1") %>% 
+  set_colnames(c("TP1_h", "TP1_cl", "TP1_cl_size", "ID"))
+setTxtProgressBar(pb, 20)
+
+message("Collecting cluster sizes for TP2")
+sizes_for_tpY <- clusterSizes(time2, "2") %>% 
+  set_colnames(c("TP2_h", "TP2_cl", "TP2_cl_size", "ID"))
+setTxtProgressBar(pb, 25)
+
+# Reorganizing the data so the time points can be merged simply
+message("Reorganizing time point data for later merging")
+# Melted time1 data: || isolate | height | cluster | id (height_cluster) ||
+df1 <- melt(time1, id = "isolate") %>% as_tibble() %>% set_colnames(c("isolate", "height", "cluster"))
+df1$height <- df1$height %>% as.character()
+df1$id <- paste0(df1$height, "-", df1$cluster)
+df1_sizes <- df1 %>% set_colnames(c("Isolate", "TP1_h", "TP1_cl", "ID")) %>% 
+  left_join(., sizes_for_tpX, by = c("TP1_h", "TP1_cl", "ID"))
+setTxtProgressBar(pb, 30)
+
+# Melted time2 data: || isolate | height | cluster | id (height_cluster) ||
+df2 <- melt(time2, id = "isolate") %>% as_tibble() %>% set_colnames(c("isolate", "height", "cluster"))
+df2$height <- df2$height %>% as.character()
+df2$id <- paste0(df2$height, "-", df2$cluster)
+df2_sizes <- df2 %>% set_colnames(c("Isolate", "TP2_h", "TP2_cl", "ID")) %>% 
+  left_join(., sizes_for_tpY, by = c("TP2_h", "TP2_cl", "ID"))
+setTxtProgressBar(pb, 35)
+
+# The foundational frame of cluster data:
+#   - sizes and membership at each time point, 
+#   - as well as the proportional increase from TP1 to TP2, in decimal form
+message("Merging time point data for comparison")
+df_all <- right_join(df1_sizes, df2_sizes, by = c("Isolate", "ID"))
+
+# Clearing up environment: removing (large) datasets no longer needed
+rm(df1_sizes); rm(df2_sizes); rm(df1); rm(df2)
+
+all_clusters <- df_all %>% dplyr::select(Isolate, TP1_h, TP1_cl, TP2_h, TP2_cl, TP1_cl_size, TP2_cl_size)
+rm(df_all)
+
+all_clusters$TP1_cl_size[is.na(all_clusters$TP1_cl_size)] <- 0
+setTxtProgressBar(pb, 40)
+
+message("Preparing proportion data")
+all_clusters$prop_inc <- NA
+all_clusters$prop_inc[all_clusters$TP1_cl_size == 0] <- 1
+inds <- which(all_clusters$TP1_cl_size != 0)
+all_clusters$prop_inc[inds] <- (all_clusters$TP2_cl_size[inds] - all_clusters$TP1_cl_size[inds]) / all_clusters$TP1_cl_size[inds]
+rm(inds)
+setTxtProgressBar(pb, 45)
+
+## Adaptive threshold development
+
+# We can plot what a couple of different threshold models can look like. 
+# This part will be heavily altered depending on what the actual data looks like. 
+# Currently being used to model synthetic data, and what we might expect significant 
+# size change to look like. 
+
+message("Running local regression steps for adaptive threshold development")
+x <- c(1, 25, 50, 100, 150)
+y <- c(300, 150, 75, 30, 15)
+
+# http://r-statistics.co/Loess-Regression-With-R.html
+loessMod1 <- loess(y ~ x, span = 1)
+smoothed1 <- predict(loessMod1)
+
+loessMod5 <- loess(y ~ x, span = 5)
+smoothed5 <- predict(loessMod5)
+
+lm_df <- tibble(x, y, smoothed1, smoothed5) %>%
+  set_colnames(c("x", "Preset values", "Local regression (span 1)", "Local regression (span 5)")) %>%
+  melt(id = "x") %>% as_tibble() %>% set_colnames(c("Cluster size", "Function", "Growth"))
+setTxtProgressBar(pb, 50)
+
+# {ggplot(lm_df, aes(x = `Cluster size`, y = `Growth`, color = `Function`)) + geom_point() + 
+#     theme(legend.position = "bottom") + scale_y_continuous(labels = scales::percent) + 
+#     ylab("Growth (%)")} %>% ggplotly()
+
+# The model selection step, and using it to determine what the adaptive threshold 
+# function values would be for each input of initial cluster size. Anything that 
+# needs to be extrapolated is set to a pre-determined plateau value of percent increase. 
+
+model_used <- loessMod1
+# predict.lm(model_used, data.frame(x = 30)) # note there are different types of prediction methods
+predicted_y <- predict(model_used, newdata = all_clusters$TP1_cl_size)
+na_predicted <- all_clusters$TP1_cl_size[which(is.na(predicted_y))]
+
+if (all(na_predicted > max(lm_df$`Cluster size`))) {
+  predicted_y[is.na(predicted_y)] <- 15
+}
+rm(na_predicted)
+setTxtProgressBar(pb, 55)
+
+sizes_predicted <- predicted_y %>% round() %>% bind_cols(all_clusters, predicted = .)
+rm(all_clusters); rm(predicted_y)
+sizes_predicted$predicted <- sizes_predicted$predicted*0.01
+
+## Fold change
+# Ranking the data by the actual proportional change over the adaptive threshold requirement, 
+# to see by how much each cluster exceeds the growth prediction. The data is then saved to 
+# the current working directory. 
+message("Comparing actual fold change to predicted change, for clusters")
+sizes_predicted$fold_change <- sizes_predicted$prop_inc / sizes_predicted$predicted
+sizes_predicted$fold_change <- sizes_predicted$fold_change %>% round(., digits = 3)
+sizes_predicted <- sizes_predicted %>% arrange(., -fold_change)
+setTxtProgressBar(pb, 60)
+
+message("Formatting data for tables, adjusting column headers - part 1")
+sizes_predicted$predicted <- sizes_predicted$predicted %>% scales::percent()
+message("Formatting data for tables, adjusting column headers - part 2")
+sizes_predicted$prop_inc <- sizes_predicted$prop_inc %>% scales::percent()
+setTxtProgressBar(pb, 65)
+
+metrics <- sizes_predicted %>% 
+  set_colnames(c("Isolate", "TP1 height", "TP1 cluster", "TP2 height", "TP2 cluster", 
+                 "TP1 cluster size", "TP2 cluster size", "Proportional growth", 
+                 "Adaptive threshold", "Fold change (Growth/Threshold)"))
+setTxtProgressBar(pb, 70)
+
+message("Writing data to files")
+write.csv(metrics, "outputs/all_clusters_table.csv", row.names = FALSE)
+write.csv(metrics[1:10,], "outputs/cluster_metrics_first_ten.csv", row.names = FALSE)
+setTxtProgressBar(pb, 75)
+close(pb)
+
+stopwatch[2] <- Sys.time()
+
+paste0("Success: metrics generated in ", round((stopwatch[2]-stopwatch[1])/60, digits = 2), 
+       " minutes (saved to the \'outputs\' directory).") %>% print()
+
+# reset message sink
+# shutdown connection to file (close)
+# sink(type="message")
+message("Closing all connections")
+closeAllConnections()
