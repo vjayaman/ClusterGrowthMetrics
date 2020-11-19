@@ -5,8 +5,8 @@ output: html_document
 
 ```{r setup, include=FALSE}
 source("global.R")
-source("tabulating_functions.R")
-source("functions.R")
+# source("tabulating_functions.R")
+source("flagging_functions.R")
 
 # --------------------------------------------------------------------------------------------------------------
 # ALL HEIGHTS - DATA PREP --------------------------------------------------------------------------------------
