@@ -1,0 +1,316 @@
+---
+title: "check_with_prev"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+source("global.R")
+source("tabulating_functions.R")
+source("functions.R")
+
+# --------------------------------------------------------------------------------------------------------------
+# ALL HEIGHTS - DATA PREP --------------------------------------------------------------------------------------
+
+tp1_filename <- "data/timepoint1_data.csv" #input_args[1]      # "european-t1_clusters.csv"
+X <- 1
+
+tp2_filename <- "data/timepoint2_data.csv" #input_args[2]      # "european-t2_clusters.csv"
+Y <- 2
+
+# the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
+time1_raw <- readData(tp1_filename, X)
+time2_raw <- readData(tp2_filename, Y)
+
+# isolates found at TP1:
+isolates_tp1 <- time1_raw$isolate
+# isolates found at TP2:
+isolates_tp2 <- time2_raw$isolate
+# isolates introduced at TP2 (novel isolates):
+new_isolates <- setdiff(isolates_tp2, isolates_tp1)
+
+# melted (long) format of the time point 1 dataset (note, contains assignments for all heights and isolates)
+df1 <- time1_raw %>% melt(id = "isolate") %>% as_tibble() %>% set_colnames(c("isolate", "tp1_h", "tp1_cl"))
+df1$tp1_h <- df1$tp1_h %>% as.character() %>% as.integer()
+time1 <- df1
+
+tp2_heights <- colnames(time2_raw)[-1]
+ids <- list()
+
+time2_coded <- time2_raw
+time2_coded$isolate <- 1:nrow(time2_coded)
+
+time2_filtered <- time2_filtered_coded <- time2_raw %>% dplyr::filter(!(isolate %in% new_isolates))
+time2_filtered_coded$isolate <- 1:nrow(time2_filtered_coded)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+height <- '0'
+a1 <- time2_coded %>% #time2_filtered_coded %>% 
+  dplyr::select(isolate, all_of(height)) %>% 
+  set_colnames(c("isolates", "height")) %>% group_by(height)
+a1_clusters <- a1$height %>% unique()
+compare_one <- lapply(1:length(a1_clusters), function(i) {
+  a1$isolates[which(a1$height == a1_clusters[i])] %>% sort() %>% paste0(collapse = ",")
+}) %>% unlist() %>% tibble(composition = ., h_bef = a1_clusters)
+
+just_originals <- clusterAssign(height, time2_raw, compare_one$h_bef, new_isolates)
+single_height <- resultsProcess(height, time2_raw, compare_one$h_bef, df1, ids, just_originals)
+
+# saveRDS(single_height, paste0("height_data/h_", height, ".Rds"))
+ids <- c(unlist(ids), single_height$flagged %>% unique()) %>% unique()
+metrics <- addToMetrics(height, ids)
+```
+
+
+```{r}
+for (j in 1:length(colnames(time2_raw)[-1][-1])) {
+  # HEIGHT 1 - b3 is the coded composition of all clusters at TP2 at this height 
+  # which means time2_raw --> filtered --> coded
+  print(paste0(j, "/", length(colnames(time2_raw)[-1][-1])))
+  height2 <- colnames(time2_raw)[-1][-1][j]
+  one_height <- time2_coded %>% 
+    dplyr::select(isolate, all_of(height2)) %>% 
+    set_colnames(c("isolates", "height2")) %>% group_by(height2)
+  new_clusters <- one_height$height2 %>% unique()
+  
+  # these are all the clusters and their composition
+  compare_two <- lapply(1:length(new_clusters), function(i) {
+    indices <- which(one_height$height2 == new_clusters[i])
+    one_height$isolates[indices] %>% 
+      sort() %>% paste0(collapse = ",")
+  }) %>% unlist() %>% tibble(composition = ., h_aft = new_clusters)
+
+  # these are the clusters that change in composition from h0 to h1
+  # then for h1 at TP2, we only need to find the originating TP1 clusters for these ones, 
+  # all other clusters have the same originating cluster as the TP2 h0 clusters
+  inds_new_clusters <- setdiff(compare_two$composition, compare_one$composition)
+  b4 <- compare_two %>% dplyr::filter(composition %in% inds_new_clusters)  
+  # note that there are many clusters that exist at height1 but not at height2
+  # (we are not interested in this representation)
+  # the focus is on clusters that now exist at height2
+  # clusters at height2 that are not in the set of those that changed in composition from height1
+  stayed_the_same <- compare_two %>% 
+    dplyr::filter(!(composition %in% inds_new_clusters)) %>% 
+    dplyr::left_join(., compare_one, by = "composition") %>% 
+    dplyr::select(-composition)
+
+  tmp1 <- inner_join(single_height, stayed_the_same, by = c("tp2_cl" = "h_bef"))
+  tmp1$tp2_h <- height2
+  tmp1$tp2_cl <- tmp1$h_aft
+  tmp2 <- tmp1 %>% dplyr::select(-h_aft)
+  
+  compare_one <- compare_two %>% set_colnames(c("composition", "h_bef"))
+  
+  # if nrow(b4) > 0, then it means there is at least one cluster 
+  # that is different in composition from the previous height
+  if (nrow(b4) > 0) {
+    # "just_originals" only includes the original isolates (but still has the actual TP2 cluster sizes) and 
+    # is a dataset of form || isolate | height (at tp2) | cluster (at tp2) | cluster size (at tp2) ||
+    just_originals <- clusterAssign(height2, time2_raw, b4$h_aft, new_isolates)
+    single_height2 <- resultsProcess(height2, time2_raw, b4$h_aft, df1, ids, just_originals)
+    saveRDS(single_height2, paste0("changing_clusters/h_", height2, ".Rds"))
+    ids <- c(ids, single_height2$flagged) %>% unique()
+    single_height <- single_height2 %>% bind_rows(tmp2, .)
+  }else {
+    single_height <- tmp2
+  }
+  # saveRDS(single_height, paste0("height_data/h_", height2, ".Rds"))
+  metrics <- addToMetrics(height2, ids, metrics)
+}
+
+# saveRDS(metrics, "height_data/metrics.Rds")
+```
+
+
+```{r}
+hfiles <- setdiff(list.files("height_data/"), "metrics.Rds")
+tracked_clusters <- paste0("height_data/", hfiles[1]) %>% readRDS()
+
+for (h_file in hfiles[-1]) {
+  print(h_file)
+  next_file <- paste0("height_data/", h_file) %>% readRDS()
+  tracked_clusters <- bind_rows(tracked_clusters, next_file)
+}
+tracked_clusters$tp2_h <- tracked_clusters$tp2_h %>% as.integer()
+tracked_clusters <- tracked_clusters %>% arrange(tp1_h, tp1_cl)
+# saveRDS(tracked_clusters, "results.Rds")
+```
+
+
+```{r}
+# tracked_clusters is the list of original genomes and their cluster assignments at all heights as well 
+# as their originating clusters, with clusters flagged if their originating cluster has been found before
+# the clusters that actually changed from TP1 to TP2 are flagged with an NA
+original_tracking <- readRDS("results.Rds")
+original_tracking$id <- paste0(original_tracking$tp2_h, "-", original_tracking$tp2_cl)
+  # original isolates tracking
+  #   - now for all novel isolates
+  #     - need to identify the cluster assignments for all heights
+  #     - then use the original isolates tracking to get the tracking for the novels
+```
+
+```{r}
+# the melted data frame of all cluster assignments for all novel isolates
+novel_df <- time2_raw %>% 
+  dplyr::filter(isolate %in% new_isolates) %>% 
+  melt(id = "isolate") %>% 
+  as_tibble() %>% set_colnames(c("isolate", "tp2_h", "tp2_cl"))
+novel_df$id <- paste0(novel_df$tp2_h, "-", novel_df$tp2_cl)
+novel_df$tp2_h <- novel_df$tp2_h %>% as.character() %>% as.integer()
+
+# the number of novel isolates in each of the clusters that contain novels
+novel_numbers <- novel_df %>% 
+  group_by(tp2_h, tp2_cl) %>% 
+  summarise(novel_size = n(), .groups = "drop")
+novel_numbers$id <- paste0(novel_numbers$tp2_h, "-", novel_numbers$tp2_cl)
+
+# if the number of novels in the cluster equals the size of the cluster, then the tp1_h and tp1_cl 
+# in the tracking dataframe should read "DNE" (did not exist)
+all_sizes <- time2_raw %>% 
+  melt(id = "isolate") %>% 
+  as_tibble() %>% set_colnames(c("isolate", "tp2_h", "tp2_cl")) %>% 
+  group_by(tp2_h, tp2_cl) %>% 
+  summarise(tp2_cl_size = n(), .groups = "drop")
+all_sizes$tp2_h <- all_sizes$tp2_h %>% as.character() %>% as.integer()
+
+comp_sizes <- left_join(novel_numbers, all_sizes, by = c("tp2_h", "tp2_cl"))
+comp_sizes$dif <- comp_sizes$tp2_cl_size - comp_sizes$novel_size
+
+dne <- novel_df %>% 
+  set_colnames(c("isolate", "tp2_h", "tp2_cl", "id")) %>% 
+  right_join(., comp_sizes[comp_sizes$dif == 0,], 
+             by = c("tp2_h", "tp2_cl", "id"))
+dne$tp1_h <- dne$tp1_cl <- "DNE"
+dne$tp1_cl_size <- 0
+dne <- dne %>% dplyr::select(isolate, tp1_h, tp1_cl, tp1_cl_size, tp2_h, tp2_cl, tp2_cl_size)
+dne$tp2_h <- dne$tp2_h %>% as.character() %>% as.integer()
+dne$flagged <- NA
+
+need_to_track <- comp_sizes$id[comp_sizes$dif > 0]
+tmp <- original_tracking %>% 
+  dplyr::filter(id %in% need_to_track) %>% 
+  dplyr::select(-isolate) %>% unique()
+
+using_originals <- novel_df %>% 
+  right_join(., tmp, by = c("tp2_h", "tp2_cl", "id")) %>% 
+  dplyr::select(isolate, tp1_h, tp1_cl, tp1_cl_size, tp2_h, tp2_cl, tp2_cl_size, flagged)
+using_originals$tp1_h <- using_originals$tp1_h %>% as.character()
+using_originals$tp1_cl <- using_originals$tp1_cl %>% as.character()
+
+novel_tracking <- bind_rows(dne, using_originals)
+```
+
+```{r}
+original_tracking$tp1_h <- original_tracking$tp1_h %>% as.character()
+original_tracking$tp1_cl <- original_tracking$tp1_cl %>% as.character()
+```
+
+
+```{r}
+tracked <- bind_rows(original_tracking, novel_tracking)
+
+# SO FAR: 
+# || isolate | tp1 h | tp1 cl | tp1 cl size | tp2 h | tp2 cl | tp2 cl size | flagged ||
+tracked <- tracked %>% 
+  dplyr::left_join(., novel_numbers, by = c("tp2_h", "tp2_cl", "id")) %>% 
+  dplyr::select(-id)
+tracked$novel_size[which(is.na(tracked$novel_size))] <- 0
+
+tracked$prop_inc <- NA
+```
+
+```{r}
+inds <- which(tracked$tp1_cl_size != 0)
+tracked$prop_inc[inds] <- (tracked$tp2_cl_size[inds] - tracked$tp1_cl_size[inds]) / tracked$tp1_cl_size[inds]
+```
+
+```{r}
+## Adaptive threshold development
+
+# We can plot what a couple of different threshold models can look like.
+# This part will be heavily altered depending on what the actual data looks like.
+# Currently being used to model synthetic data, and what we might expect significant
+# size change to look like.
+
+# message("Running local regression steps for adaptive threshold development")
+x <- c(1, 25, 50, 100, 150)
+y <- c(300, 150, 75, 30, 15)
+
+# http://r-statistics.co/Loess-Regression-With-R.html
+loessMod1 <- loess(y ~ x, span = 1)
+smoothed1 <- predict(loessMod1)
+
+loessMod5 <- loess(y ~ x, span = 5)
+smoothed5 <- predict(loessMod5)
+
+lm_df <- tibble(x, y, smoothed1, smoothed5) %>%
+  set_colnames(c("x", "Preset values", "Local regression (span 1)", "Local regression (span 5)")) %>%
+  melt(id = "x") %>% as_tibble() %>% set_colnames(c("Cluster size", "Function", "Growth"))
+
+# The model selection step, and using it to determine what the adaptive threshold
+# function values would be for each input of initial cluster size. Anything that
+# needs to be extrapolated is set to a pre-determined plateau value of percent increase.
+
+model_used <- loessMod1
+# predict.lm(model_used, data.frame(x = 30)) # note there are different types of prediction methods
+predicted_y <- predict(model_used, newdata = tracked$tp1_cl_size)
+na_predicted <- tracked$tp1_cl_size[which(is.na(predicted_y))]
+
+if (all(na_predicted > max(lm_df$`Cluster size`))) {
+  predicted_y[is.na(predicted_y)] <- 15
+}
+
+final_df <- predicted_y %>% round() %>% bind_cols(tracked, predicted = .)
+final_df$predicted <- final_df$predicted*0.01
+```
+
+
+```{r}
+# ## Fold change
+# # Ranking the data by the actual proportional change over the adaptive threshold requirement,
+# # to see by how much each cluster exceeds the growth prediction. The data is then saved to
+# # the current working directory.
+
+final_df$fold_change <- final_df$prop_inc / final_df$predicted
+final_df$fold_change <- final_df$fold_change %>% round(., digits = 3)
+final_df <- final_df %>% arrange(., -fold_change)
+
+final_df$predicted <- final_df$predicted %>% scales::percent()
+final_df$prop_inc <- final_df$prop_inc %>% scales::percent()
+
+metrics <- final_df %>% 
+  dplyr::select(isolate, tp1_h, tp1_cl, tp2_h, tp2_cl, tp1_cl_size, tp2_cl_size, 
+                flagged, novel_size, prop_inc, predicted, fold_change) %>% 
+  set_colnames(c("Isolate", "Height (TP1)", "Cluster (TP1)", 
+                 "Height (TP2)", "Cluster (TP2)", "TP1 cluster size", 
+                 "TP2 cluster size", "Flag (originator seen before)", 
+                 "Number of novels", "Proportional growth", 
+                 "Adaptive threshold", "Fold change (Growth/Threshold)"))
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+# # Now need to make a dataframe that identifies the first multistrain cluster at TP2
+# # that absorbs each of the novel genomes
+# #   - then will use "tracked_clusters" to find the originating cluster at TP1
+# #   - and can then output size changes for the novel genomes
+# 
+# 
+# 
+# # END GOAL: to have a list of the following:
+# # || all isolates (novel and original) | tp1 height (all heights) | tp1 assigned cluster | 
+# #   tp1 cluster size | tp2 height (all heights) | the cluster this isolate is found in at this tp2 height | 
+# #   the size of this cluster | a flag for whether or not the tp1 cluster was the originating cluster |
+# #   the change in cluster size | the proportional increase | ... ||
+```
+
