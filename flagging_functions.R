@@ -1,4 +1,4 @@
-x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales")
+x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress")
 lapply(x, require, character.only = TRUE)
 
 get <- .Primitive("[[")
@@ -77,16 +77,40 @@ factorToInt <- function(dataset, cname) {
 createID <- function(df, c1, c2) {
   df %>% add_column(id = paste0(pull(df, c1), "-", pull(df, c2))) %>% return()
 }
+
+clustComp <- function(df, height, dtype) {
+  message(paste0("Preparing cluster composition set for height ", height))
+  a1 <- df %>% 
+    select(isolate, all_of(height)) %>% 
+    set_colnames(c("isolate", "tp2_cl"))
+  clusters <- a1$tp2_cl %>% unique()
+  
+  hx <- list("a1" = a1, "cl" = clusters)
+  
+  lapply(1:length(hx$cl), function(i) {
+    filter(hx$a1, tp2_cl == hx$cl[i]) %>% 
+      pull(isolate) %>% 
+      paste0(collapse = ",") %>% return()
+  }) %>% unlist() %>% 
+    tibble(., hx$cl) %>% 
+    set_colnames(c("composition", dtype)) %>% 
+    return()
+}
 # --------------------------------------------------------------------------------------------------------------
 resultsProcess <- function(h, time2_data, all_clusters, df1, ids, jo) {
   # given the heights and cluster assignments for all TP1 isolates, we filter to keep only the genomes found 
   # in a particular cluster kc, then we identify all the clusters at TP1 that only contain these genomes
   # and then return the first height-and cluster pair where these isolates are found in a single cluster  
-    
+  message(paste0("Collecting information for the ", length(all_clusters), " clusters ", 
+                 "present at height ", h))
+  
+  pb <- progress_bar$new(total = length(all_clusters))
+  
   lapply(1:length(all_clusters), function(i) {
-    print(paste0("h_", h, "-", i, "/", length(all_clusters)))
+    pb$tick()
+    # print(paste0("h_", h, "-", i, "/", length(all_clusters)))
     kc <- jo %>% dplyr::filter(tp2_cl == all_clusters[i])
-      
+    
     # the first cluster in the TP1 dataset to contain only the originals found in the 
     # TP2 cluster, cluster_x, in form || tp1_h | tp1_cl | tp1_cl_size ||
     x1 <- df1 %>% 

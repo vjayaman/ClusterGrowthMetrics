@@ -5,7 +5,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-
+save_data <- FALSE
 source("flagging_functions.R")
 
 tp1_filename <- "data/timepoint1_data.csv" #input_args[1]      # "european-t1_clusters.csv"
@@ -36,36 +36,27 @@ df1 <- time1_raw %>%
 ```
 
 ```{r}
-height <- '0'
 ids <- list()
-
-a1 <- time2_coded %>% 
-  select(isolate, all_of(height)) %>% 
-  set_colnames(c("isolate", "tp2_cl")) %>% 
-  group_by(tp2_cl)
-a1_clusters <- a1$tp2_cl %>% unique()
-
+h <- '0'
 # finding the composition (in terms of coded isolates) of each of the clusters
 # note that this includes both novel and original isolates
-clusters_one <- lapply(1:length(a1_clusters), function(i) {
-  indices <- which(a1$tp2_cl == a1_clusters[i])
-  a1$isolate[indices] %>% sort() %>% 
-    paste0(collapse = ",") %>% return()
-}) %>% unlist() %>% 
-  tibble(composition = ., h_bef = a1_clusters)
+precomp <- clustComp(time2_coded, h, "h_before")
 
 # we find the cluster assignments for all isolates at a particular height at TP2 that can be 
 # found in the given list of clusters (have not yet found originating clusters for these)
 # dataset of form || isolate (originals) | tp2 height | tp2 cluster | tp2 cluster size ||
-just_originals <- clusterAssignments(height, time2_raw, clusters_one$h_bef, new_isolates)
+just_originals <- clusterAssignments(h, time2_raw, precomp$h_before, new_isolates)
 
-single_height <- resultsProcess(height, time2_raw, clusters_one$h_bef, df1, ids, just_originals)
+single_height <- resultsProcess(h, time2_raw, precomp$h_before, df1, ids, just_originals)
 
 ids <- c(unlist(ids), single_height$flagged %>% unique()) %>% unique()
 metrics <- addToMetrics(height, ids)
+saveRDS(single_height, paste0("tmpheights/h_", height, ".Rds"))
 
 if (isTRUE(save_data)) {
   saveRDS(single_height, paste0("height_data/h_", height, ".Rds"))
+}else {
+  message("Note: not saving data; testing")
 }
 ```
 
@@ -74,56 +65,52 @@ if (isTRUE(save_data)) {
 for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   # HEIGHT 1 - b3 is the coded composition of all clusters at TP2 at this height 
   # which means time2_raw --> filtered --> coded
-  print(paste0(j, "/", length(colnames(time2_raw)[-1][-1])))
   height2 <- colnames(time2_raw)[-1][-1][j]
-  one_height <- time2_coded %>% 
-    select(isolate, all_of(height2)) %>% 
-    set_colnames(c("isolates", "height2")) %>% 
-    group_by(height2)
-  new_clusters <- one_height$height2 %>% unique()
+  print(paste0(j, "/", length(colnames(time2_raw)[-1][-1]), ", height ", height2))
   
   # these are all the clusters and their composition
-  clusters_two <- lapply(1:length(new_clusters), function(i) {
-    indices <- which(one_height$height2 == new_clusters[i])
-    one_height$isolates[indices] %>% 
-      sort() %>% paste0(collapse = ",")
-  }) %>% unlist() %>% tibble(composition = ., h_aft = new_clusters)
+  postcomp <- clustComp(time2_coded, height2, "h_after")
 
   # these are the clusters that change in composition from h0 to h1
   # then for h1 at TP2, we only need to find the originating TP1 clusters for these ones, 
   # all other clusters have the same originating cluster as the TP2 h0 clusters
-  inds_new_clusters <- setdiff(clusters_two$composition, clusters_one$composition)
-  b4 <- clusters_two %>% dplyr::filter(composition %in% inds_new_clusters)  
+  
+  inds_new_clusters <- setdiff(postcomp$composition, precomp$composition)
+  if (length(inds_new_clusters) > 0) {stop("Try this one!")}
+  b4 <- postcomp %>% filter(composition %in% inds_new_clusters)  
+  
   # note that there are many clusters that exist at height1 but not at height2
   # (we are not interested in this representation)
   # the focus is on clusters that now exist at height2
   # clusters at height2 that are not in the set of those that changed in composition from height1
-  stayed_the_same <- clusters_two %>% 
-    dplyr::filter(!(composition %in% inds_new_clusters)) %>% 
-    dplyr::left_join(., clusters_one, by = "composition") %>% 
-    dplyr::select(-composition)
+  stayed_the_same <- postcomp %>% 
+    filter(!(composition %in% inds_new_clusters)) %>% 
+    left_join(., precomp, by = "composition") %>% 
+    select(-composition)
 
-  tmp1 <- inner_join(single_height, stayed_the_same, by = c("tp2_cl" = "h_bef"))
+  tmp1 <- inner_join(single_height, stayed_the_same, by = c("tp2_cl" = "h_before")) %>% 
+    select(-tp2_cl) %>% rename(tp2_cl = h_after) %>% 
+    select(colnames(single_height))
   tmp1$tp2_h <- height2
-  tmp1$tp2_cl <- tmp1$h_aft
-  tmp2 <- tmp1 %>% dplyr::select(-h_aft)
   
-  clusters_one <- clusters_two %>% set_colnames(c("composition", "h_bef"))
+  if (any(tmp1$tp2_h != height2)) {stop("TP2 height not labelled correctly")}
+  
+  precomp <- postcomp %>% set_colnames(c("composition", "h_before"))
   
   # if nrow(b4) > 0, then it means there is at least one cluster 
   # that is different in composition from the previous height
   if (nrow(b4) > 0) {
     # "just_originals" only includes the original isolates (but still has the actual TP2 cluster sizes) and 
     # is a dataset of form || isolate | height (at tp2) | cluster (at tp2) | cluster size (at tp2) ||
-    just_originals <- clusterAssign(height2, time2_raw, b4$h_aft, new_isolates)
-    single_height2 <- resultsProcess(height2, time2_raw, b4$h_aft, df1, ids, just_originals)
+    just_originals <- clusterAssign(height2, time2_raw, b4$h_after, new_isolates)
+    single_height2 <- resultsProcess(height2, time2_raw, b4$h_after, df1, ids, just_originals)
     if (isTRUE(save_data)) {
       saveRDS(single_height2, paste0("changing_clusters/h_", height2, ".Rds"))
     }
     ids <- c(ids, single_height2$flagged) %>% unique()
-    single_height <- single_height2 %>% bind_rows(tmp2, .)
+    single_height <- single_height2 %>% bind_rows(tmp1, .)
   }else {
-    single_height <- tmp2
+    single_height <- tmp1
   }
   if (isTRUE(save_data)) {
     saveRDS(single_height, paste0("height_data/h_", height2, ".Rds"))
