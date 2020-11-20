@@ -20,10 +20,14 @@ separateText <- function(txt, sp, i) {
 # given the defining filename in:
 # C:\Users\vasen\Documents\Pre-MSc courses\Honours Research Project\SummerProject-2020\, 
 # read in the data
-readData <- function(filename) {
-  filename %>% 
-    read.csv(file = ., numerals = "no.loss", stringsAsFactors = FALSE) %>% 
-    as_tibble() %>% return()
+readData <- function(filename, file_number) {
+  
+  if (is.na(filename)) {
+    stop(paste0("Time point ", file_number, " dataset not found."))
+  }else {
+    time_X <- read.csv(file = filename, stringsAsFactors = FALSE, numerals = "no.loss", check.names = FALSE) %>% as_tibble()
+  }
+  return(time_X)
 }
 
 # merge tables of 
