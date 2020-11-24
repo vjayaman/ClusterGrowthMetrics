@@ -79,7 +79,7 @@ createID <- function(df, c1, c2) {
 }
 
 clustComp <- function(df, height, dtype) {
-  message(paste0("Preparing cluster composition set for height ", height))
+  message(paste0("Preparing cluster composition IDs for height ", height))
   a1 <- df %>% 
     select(isolate, all_of(height)) %>% 
     set_colnames(c("isolate", "tp2_cl"))
@@ -96,17 +96,30 @@ clustComp <- function(df, height, dtype) {
     set_colnames(c("composition", dtype)) %>% 
     return()
 }
+
+collectionMsg <- function(h, time2_data, all_clusters) {
+  if (match(h, colnames(time2_data)) == 2) {
+    message(paste0("Collecting data for the ", length(all_clusters), 
+                   " clusters at height ", h, " (base case)"))
+  }else {
+    message(paste0("Collecting data for the ", length(all_clusters), " cluster(s) ", 
+                   "that changed in composition from the previous height"))    
+  }
+}
 # --------------------------------------------------------------------------------------------------------------
-resultsProcess <- function(h, time2_data, all_clusters, df1, ids, jo) {
+# time2_data <- time2_raw
+# all_clusters <- ac
+# df1 <- meltedTP1
+# jo <- just_originals
+
+resultsProcess <- function(time2_data, all_clusters, df1, ids, jo) {
   # given the heights and cluster assignments for all TP1 isolates, we filter to keep only the genomes found 
   # in a particular cluster kc, then we identify all the clusters at TP1 that only contain these genomes
   # and then return the first height-and cluster pair where these isolates are found in a single cluster  
-  message(paste0("Collecting information for the ", length(all_clusters), " clusters ", 
-                 "present at height ", h))
-  
   pb <- progress_bar$new(total = length(all_clusters))
   
   lapply(1:length(all_clusters), function(i) {
+    i <- 2
     pb$tick()
     # print(paste0("h_", h, "-", i, "/", length(all_clusters)))
     kc <- jo %>% dplyr::filter(tp2_cl == all_clusters[i])
@@ -114,18 +127,16 @@ resultsProcess <- function(h, time2_data, all_clusters, df1, ids, jo) {
     # the first cluster in the TP1 dataset to contain only the originals found in the 
     # TP2 cluster, cluster_x, in form || tp1_h | tp1_cl | tp1_cl_size ||
     x1 <- df1 %>% 
-      dplyr::filter(isolate %in% kc$isolate) %>% 
-      dplyr::select(-isolate) %>%
+      filter(isolate %in% kc$isolate) %>% 
+      select(-isolate) %>%
       countCases(., "tp1_cl_size") %>% 
-      dplyr::filter(tp1_cl_size == nrow(kc)) %>% 
+      filter(tp1_cl_size == nrow(kc)) %>% 
       slice(tp1_cl_size = 1)
       
     # we add this "originating cluster" to the dataframe with this TP2 cluster
     # if this "originating cluster" is already in the ID list, return with an unflagged notation, 
     # otherwise add to the list of IDs and flag the cluster
-    paste0(x1$tp1_h, "-", x1$tp1_cl) %>% 
-      checkID(., kc, x1, ids) %>% 
-      return()
+    paste0(x1$tp1_h, "-", x1$tp1_cl) %>% checkID(., kc, x1, ids) %>% return()
   }) %>% bind_rows() %>% return()
 }
 
