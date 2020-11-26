@@ -21,6 +21,12 @@ readData <- function(filename, file_number) {
   return(time_X)
 }
 
+saveData <- function(h, sh, ids, metrics) {
+  paste0("height_data/h_", h, ".Rds") %>% saveRDS(sh, .)
+  paste0("ids/h_", h, ".Rds") %>% saveRDS(ids, .)
+  paste0("num_ids/h_", h, ".Rds") %>% saveRDS(metrics, .)
+}
+
 # --------------------------------------------------------------------------------------------------------------
 # we find the cluster assignments for all isolates at a particular height at TP2 
 # that can be found in the given list of clusters (have not yet originating clusters for these)
@@ -106,6 +112,20 @@ collectionMsg <- function(h, time2_data, all_clusters) {
                    "that changed in composition from the previous height"))    
   }
 }
+
+
+compClusters <- function(dataset) {
+  dataset %>% 
+    meltData(., "isolate") %>% 
+    select(-isolate) %>% 
+    unique() %>% 
+    set_colnames(c("tp2_h", "tp2_cl")) %>% 
+    createID(., "tp2_h", "tp2_cl") %>% 
+    factorToInt("tp2_h") %>% 
+    arrange(tp2_h, tp2_cl) %>% 
+    return()
+}
+
 # --------------------------------------------------------------------------------------------------------------
 # time2_data <- time2_raw
 # all_clusters <- ac
@@ -119,7 +139,6 @@ resultsProcess <- function(time2_data, all_clusters, df1, ids, jo) {
   pb <- progress_bar$new(total = length(all_clusters))
   
   lapply(1:length(all_clusters), function(i) {
-    i <- 2
     pb$tick()
     # print(paste0("h_", h, "-", i, "/", length(all_clusters)))
     kc <- jo %>% dplyr::filter(tp2_cl == all_clusters[i])
