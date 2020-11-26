@@ -90,10 +90,8 @@ saveRDS(metrics, "num_ids/h_0.Rds")
 stopwatch <- rep(0,3)
 stopwatch[1] <- Sys.time()
 
-# for (j in 1:50) {
 for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   stopwatch[2] <- Sys.time()
-  # if (j == 900) {stop("start from here")}
   # HEIGHT 1 - b3 is the coded composition of all clusters at TP2 at this height 
   # which means time2_raw --> filtered --> coded
   height2 <- colnames(time2_raw)[-1][-1][j]
@@ -151,7 +149,7 @@ for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   message("\n")
   stopwatch[3] <- Sys.time()
 }
-
+saveRDS(stopwatch, "stopwatch.Rds")
 
 # NOTE: ALSO NEED TO PREP A NICE WAY TO STOP IN THE MIDDLE OF RUNNING THIS AND PICK UP AGAIN LATER
 # (LIKE A PARTICULAR WAY OF DOING SO CLEANLY, WITHOUT ANY WASTED WORK)
@@ -176,17 +174,6 @@ saveRDS(tracked_clusters, "results.Rds")
 ```
 
 ```{r}
-# # PROBLEM
-# # cluster 0-441 from TP1 is the originating cluster for
-# #   - 945-686, 946-685, 947-684, ... need to check this
-# #   - all the other rows should be flagged, since the originating cluster is the same
-# tracked_clusters %>% 
-#   filter(tp2_h %in% c(944,945)) %>% 
-#   filter(tp1_cl == 444)
-```
-
-
-```{r}
 # tracked_clusters is the list of original genomes and their cluster assignments at all heights as well 
 # as their originating clusters, with clusters flagged if their originating cluster has been found before
 # the clusters that actually changed from TP1 to TP2 are flagged with an NA
@@ -206,108 +193,68 @@ original_tracking <- readRDS("results.Rds") %>% createID(., "tp2_h", "tp2_cl")
 ```
 
 ```{r}
-# This part is just to check that all the TP2 clusters are represented
-actual_clusters <- compClusters(time2_raw)
-
-# definitely have originals and might have novels
-omn <- time2_raw %>% 
-  filter(!(isolate %in% novels)) %>% 
-  compClusters(.)
-omn_ids <- omn$id %>% unique() %>% sort()
-
-# definitely have novels and might have originals
-nmo <- time2_raw %>% 
-  filter(isolate %in% novels) %>% 
-  compClusters()
-nmo_ids <- nmo$id %>% unique() %>% sort()
-
-# novels only - present in the nmo set but not in the omn set
-novels_only <- setdiff(nmo_ids, omn_ids)
-
-# novels and originals - present in both the omn and nmo sets
-present_in_both <- intersect(omn_ids, nmo_ids)
-
-# originals only - present in the omn and not the nmo set
-originals_only <- setdiff(omn_ids, nmo_ids)
-
-in_tracked <- original_tracking %>% 
-  select(tp2_h, tp2_cl, id) %>% 
-  pull(id) %>% unique() %>% sort()
-
-# checking that the actual clusters match with the output of the tracking process
-sum(length(present_in_both), length(originals_only)) == length(in_tracked)
-
-# # FOUND THE MISSING CLUSTERS! 
-# #   - some of the clusters with clusters with originals are not being tracked (the results process missed them)
+# # This part is just to check that all the TP2 clusters are represented
+# actual_clusters <- checkingClusters(time2_raw, 1)
 # 
-# setA <- setdiff(present_in_both, in_tracked)
-# length(setA)
-# # 105 clusters that have both novels and originals are not being tracked
-# setB <- setdiff(originals_only, in_tracked)
-# length(setB)
-# # 145 clusters that only have originals are not being tracked
-# actual_clusters %>% filter(id %in% c(setA,setB)) %>% View()
-# # all of these missing clusters are from height 1!
-# #     --> but the results process is not actually skipping this height entirely
-# #     --> some of the clusters are being mislabelled
-# #     --> one of this missing clusters is 5 at height 1
+# # definitely have originals and might have novels
+# omn <- time2_raw %>% filter(!(isolate %in% novels)) %>% checkingClusters(., 1)
+# omn_ids <- omn$id %>% unique() %>% sort()
+# 
+# # definitely have novels and might have originals
+# nmo <- time2_raw %>% filter(isolate %in% novels) %>% checkingClusters(., 1)
+# nmo_ids <- nmo$id %>% unique() %>% sort()
+# 
+# # novels only - present in the nmo set but not in the omn set
+# novels_only <- setdiff(nmo_ids, omn_ids)
+# 
+# # novels and originals - present in both the omn and nmo sets
+# present_in_both <- intersect(omn_ids, nmo_ids)
+# 
+# # originals only - present in the omn and not the nmo set
+# originals_only <- setdiff(omn_ids, nmo_ids)
+# 
+# in_tracked <- original_tracking %>% 
+#   select(tp2_h, tp2_cl, id) %>% 
+#   pull(id) %>% unique() %>% sort()
+# 
+# # checking that the actual clusters match with the output of the tracking process
+# sum(length(present_in_both), length(originals_only)) == length(in_tracked)
 ```
 
 
 ```{r}
 # get the TP2 cluster sizes
-tmp <- time2_raw %>% 
-  meltData(., "isolate") %>% 
-  factorToInt("variable") %>% 
-  set_colnames(c("isolate", "tp2_h", "tp2_cl")) %>% 
-  createID(., "tp2_h", "tp2_cl") %>% 
-  arrange(tp2_h, tp2_cl)
+tmp <- checkingClusters(time2_raw)
 
 all_sizes <- tmp %>% group_by(tp2_h, tp2_cl) %>% 
   summarise(tp2_cl_size = n(), .groups = "drop") %>% 
   left_join(tmp, ., by = c("tp2_h", "tp2_cl"))
 
 # novel cluster assignments
-cwn <- time2_raw %>% 
-  filter(isolate %in% novels) %>% 
-  meltData(., "isolate") %>% 
-  factorToInt("variable") %>% 
-  set_colnames(c("isolate", "tp2_h", "tp2_cl")) %>% 
-  createID(., "tp2_h", "tp2_cl")
-
+cwn <- tmp %>% filter(isolate %in% novels)
 # non-novel cluster assignments
-cnn <- time2_raw %>% 
-  filter(!(isolate %in% novels)) %>% 
-  meltData(., "isolate") %>% 
-  factorToInt("variable") %>% 
-  set_colnames(c("isolate", "tp2_h", "tp2_cl")) %>% 
-  createID(., "tp2_h", "tp2_cl")
+cnn <- tmp %>% filter(!(isolate %in% novels))
 
 # the original_tracking dataset has only original isolates
-# we want to track the clusters for
-#   - those with originals and novels
-tmp1 <- original_tracking %>% select(-isolate) %>% unique()
-oan <- all_sizes %>% filter(id %in% intersect(cwn$id, cnn$id)) %>% 
-  left_join(., tmp1, by = c("tp2_h", "tp2_cl", "tp2_cl_size", "id"))
-# identical(oan$id %>% unique() %>% sort(), a1 %>% sort() %>% unique()) # this should be true
+# this includes originals that are found in clusters with novels
 
 #   - and create a new set with only the novels
 nov_only <-  all_sizes %>% filter(id %in% setdiff(cwn$id, cnn$id)) %>% 
   add_column(tp1_h = NA, tp1_cl = NA, tp1_cl_size = 0, flagged = NA) %>% 
   select(isolate, tp1_h, tp1_cl, tp1_cl_size, tp2_h, tp2_cl, tp2_cl_size, flagged, id)
 
-
-dfall <- original_tracking %>% 
+tracked <- original_tracking %>% 
   bind_rows(., nov_only) %>% 
-  bind_rows(., oan)
-```
+  add_column(prop_inc = NA)
 
-```{r}
-tracked <- dfall %>% add_column(prop_inc = NA)
+# CHECKING: the following should be true, to show that we didn't lose any clusters on the way so far
+# identical(sort(unique(all_sizes$id)), sort(unique(tracked$id)))
+
 # HANDLE THESE CASES SEPARATELY: 
 zero_denoms <- tracked %>% filter(tp1_cl_size == 0)
 
 # we now are only going to look at clusters that existed at TP1 first
+# we'll add the zero_denominator cases back in later
 tracked <- tracked %>% filter(tp1_cl_size > 0)
 
 tracked$prop_inc <- (tracked$tp2_cl_size - tracked$tp1_cl_size) / tracked$tp1_cl_size
@@ -356,9 +303,10 @@ if (all(na_predicted > max(lm_df$`Cluster size`))) {
 
 final_df <- predicted_y %>% round() %>% bind_cols(tracked, predicted = .)
 final_df$predicted <- final_df$predicted*0.01
-final_df$fold_change <- (final_df$prop_inc / final_df$predicted) %>% 
-  round(., digits = 3)
-final_df <- final_df %>% arrange(., -fold_change) %>% 
+final_df$fold_change <- (final_df$prop_inc / final_df$predicted) %>% round(., digits = 3)
+
+final_df <- final_df %>% 
+  arrange(., -fold_change) %>% 
   mutate(across(c(predicted, prop_inc), scales::percent))
 ```
 
@@ -374,35 +322,23 @@ final_df <- final_df %>% arrange(., -fold_change) %>%
 
 nov_sizes <- time2_raw %>% 
   filter(isolate %in% novels) %>% 
-  meltData(., "isolate") %>% 
-  factorToInt("variable") %>% 
-  set_colnames(c("isolate", "tp2_h", "tp2_cl")) %>% 
-  createID(., "tp2_h", "tp2_cl") %>% 
+  checkingClusters() %>% 
   select(-isolate, -id) %>%
-  arrange(tp2_h, tp2_cl) %>% 
   group_by_all() %>% 
   summarise(num_novels = n(), .groups = "drop")
 
-# final_df --> nrow is 818 768
-# zero_denoms --> 981 916
-
-final_df <- final_df %>% left_join(., nov_sizes, by = c("tp2_h", "tp2_cl"))
-
 zero_denoms$fold_change <- zero_denoms$predicted <- NA
 
-final_df <- bind_rows(final_df, zero_denoms)
+final_df <- final_df %>% 
+  left_join(., nov_sizes, by = c("tp2_h", "tp2_cl")) %>% 
+  bind_rows(., zero_denoms)
 ```
 
 ```{r}
 # This part is just to check that all the TP2 clusters are represented (except for those with 
 # only novels)
-actual_clusters <- time2_raw %>% 
-  meltData(., "isolate") %>% 
-  select(-isolate) %>% unique() %>% 
-  set_colnames(c("tp2_h", "tp2_cl")) %>% 
-  factorToInt("tp2_h") %>% 
-  arrange(tp2_h, tp2_cl) %>% 
-  createID(., "tp2_h", "tp2_cl")
+
+actual_clusters <- time2_raw %>% checkingClusters(., 1)
 # 1 800 684
 
 result_clusters <- final_df %>% 
@@ -411,7 +347,7 @@ result_clusters <- final_df %>%
   createID(., "tp2_h", "tp2_cl")
 
 # if the following is true, then all clusters have been accounted for
-# identical(actual_clusters$id, result_clusters$id)
+identical(actual_clusters$id, result_clusters$id)
 ```
 
 
@@ -437,9 +373,7 @@ metrics <- read.csv("all_clusters_table.csv", stringsAsFactors = FALSE) %>% as_t
 #   - what about the clusters that don't absorb any?
 ```
 
-```{r}
 
-```
 
 
 ```{r}
@@ -450,25 +384,12 @@ metrics <- read.csv("all_clusters_table.csv", stringsAsFactors = FALSE) %>% as_t
 
 
 
-
 ```{r}
-# # Now need to make a dataframe that identifies the first multistrain cluster at TP2
-# # that absorbs each of the novel genomes
-# #   - then will use "tracked_clusters" to find the originating cluster at TP1
-# #   - and can then output size changes for the novel genomes
-# 
-# 
-# 
-# # END GOAL: to have a list of the following:
-# # || all isolates (novel and original) | tp1 height (all heights) | tp1 assigned cluster | 
-# #   tp1 cluster size | tp2 height (all heights) | the cluster this isolate is found in at this tp2 height | 
-# #   the size of this cluster | a flag for whether or not the tp1 cluster was the originating cluster |
-# #   the change in cluster size | the proportional increase | ... ||
+# # PROBLEM
+# # cluster 0-441 from TP1 is the originating cluster for
+# #   - 945-686, 946-685, 947-684, ... need to check this
+# #   - all the other rows should be flagged, since the originating cluster is the same
+# tracked_clusters %>% 
+#   filter(tp2_h %in% c(944,945)) %>% 
+#   filter(tp1_cl == 444)
 ```
-
-```{r}
-# key_clusters <- metrics[which(is.na(metrics$`Flag (originator seen before)`)),] %>% 
-#   select(-Isolate) %>% unique()
-# # which(is.na(metrics$`Flag (originator seen before)`)) %>% length()
-```
-

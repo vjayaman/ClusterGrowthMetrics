@@ -114,16 +114,20 @@ collectionMsg <- function(h, time2_data, all_clusters) {
 }
 
 
-compClusters <- function(dataset) {
-  dataset %>% 
+checkingClusters <- function(dataset, dtype = 2) {
+  df <- dataset %>% 
     meltData(., "isolate") %>% 
-    select(-isolate) %>% 
-    unique() %>% 
-    set_colnames(c("tp2_h", "tp2_cl")) %>% 
-    createID(., "tp2_h", "tp2_cl") %>% 
-    factorToInt("tp2_h") %>% 
-    arrange(tp2_h, tp2_cl) %>% 
-    return()
+    factorToInt("variable") %>% 
+    set_colnames(c("isolate", "tp2_h", "tp2_cl")) %>% 
+    createID(., "tp2_h", "tp2_cl")
+  
+  if (dtype == 1) {
+    df <- df %>% select(-isolate) %>% unique() %>% 
+      arrange(tp2_h, tp2_cl)
+  }else {
+    df <- df %>% arrange(tp2_h, tp2_cl)
+  }
+  return(df)
 }
 
 # --------------------------------------------------------------------------------------------------------------
