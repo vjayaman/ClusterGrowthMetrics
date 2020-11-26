@@ -113,4 +113,3 @@ percForSize <- function(gth, key_clusters, size_x) {
     set_colnames(c("perc", paste0("num_cl_size_above_", size_x))) %>%
     return()
 }
-
