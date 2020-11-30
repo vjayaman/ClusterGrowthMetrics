@@ -58,9 +58,11 @@ for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   # if nrow(changed_comp) > 0, then there is >= one cluster different in composition from previous height
   if (length(ac) > 0) {
     new_height <- oneHeight(time2_raw, time2_coded, height2, novels, meltedTP1, ids, ac, precc)
-    if (length(intersect(ids, new_height$flagged)) > 0) {
-      # some clusters are being flagged even though they've been seen before!
-      stop(paste0("Some clusters at height ", height2, " are being flagged even though they've been seen before!"))
+    if (length(intersect(ids, new_height$flagged)) > 1) {
+      # the > 1 is so that the clusters with the "sb" label don't trigger this error message
+      stop(paste0("Some clusters at height ", height2, " are being ", 
+                  "flagged even though they've been seen before!: ", 
+                  paste0(intersect(ids, new_height$flagged), collapse = ",")))
     }
     ids <- c(ids, new_height$flagged)
     single_height <- new_height %>% bind_rows(transit, .)
