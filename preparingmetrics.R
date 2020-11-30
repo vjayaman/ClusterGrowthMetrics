@@ -18,7 +18,7 @@ pb$tick()
 # tracked_clusters is the list of original genomes and their cluster assignments at all heights as well 
 # as their originating clusters, with clusters flagged if their originating cluster has been found before
 # the clusters that actually changed from TP1 to TP2 are flagged with an NA
-original_tracking <- readRDS("outputs2/results.Rds") %>% 
+original_tracking <- readRDS("outputs/results.Rds") %>% 
   createID(., "tp2_h", "tp2_cl")
 pb$tick()
 # in this dataset we have, for all ORIGINAL isolates, the cluster assignments at TP1 and TP2, 

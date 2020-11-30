@@ -1,3 +1,7 @@
+# need to test TP1 cluster 0-1, which becomes at TP2:
+# 0-4165, 1-3797, 2-3777, etc.
+# in a correct result, everything other than 0-4165 would be given a "sb" flag, instead of "0-1"
+
 source("flagging_functions.R")
 
 # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
@@ -31,7 +35,8 @@ base_case_h <- colnames(time2_raw)[2]
 # finding the composition (in terms of coded isolates) of each of the clusters
 # note that this includes both novel and original isolates
 precc <- clustComp(time2_coded, base_case_h, "h_before")
-single_height <- oneHeight(time2_raw, time2_coded, base_case_h, novels, 
+
+single_height <- oneHeight(time2_raw, time2_coded, base_case_h, novels,
                            meltedTP1, ids, precc$h_before, precc)
 ids <- c(unlist(ids), single_height$flagged %>% unique()) %>% unique()
 metrics <- addToMetrics(base_case_h, ids)
@@ -43,7 +48,7 @@ stopwatch[1] <- Sys.time()
 
 for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   # HEIGHT 1 - b3 is the coded composition of all clusters at TP2 at this height 
-  # which means time2_raw --> filtered --> coded
+  j <- 2
   height2 <- colnames(time2_raw)[-1][-1][j]
   
   write.csv(precc, paste0("outputs/transit/precomp/", height2, ".csv"), row.names = FALSE)
@@ -51,8 +56,11 @@ for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   message(paste0("Threshold h_", height2, " - ", j, " / ", length(colnames(time2_raw)[-1][-1])))
   
   postcc <- clustComp(time2_coded, height2, "h_after")
-  ac <- changedClusters(precc, postcc)
-  transit <- noChange(postcc, ac, precc, single_height)
+  # these are the clusters that changed from TP1 to TP2, and their new composition
+  changed_comp <- changedClusters(precc, postcc)
+  # these are the new clusters, for those that changed in composition
+  ac <- changed_comp$h_after
+  transit <- noChange(postcc, changed_comp, precc, single_height)
   precc <- postcc %>% set_colnames(c("composition", "h_before"))
   
   # if nrow(changed_comp) > 0, then there is >= one cluster different in composition from previous height
@@ -64,7 +72,7 @@ for (j in 1:length(colnames(time2_raw)[-1][-1])) {
                   "flagged even though they've been seen before!: ", 
                   paste0(intersect(ids, new_height$flagged), collapse = ",")))
     }
-    ids <- c(ids, new_height$flagged)
+    ids <- c(ids, new_height$flagged) %>% unique()
     single_height <- new_height %>% bind_rows(transit, .)
     
   }else {
@@ -75,9 +83,9 @@ for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   metrics <- addToMetrics(height2, ids, metrics)
   
   saveRDS(ids, paste0("outputs/transit/ids/", height2, ".Rds"))
-  write.csv(metrics, paste0("outputs/transit/metrics//", height2, ".csv"), row.names = FALSE)
+  write.csv(metrics, paste0("outputs/transit/metrics.csv"), row.names = FALSE)
   
-  saveData(dtype = 1, sh = single_height, h = height2)
+  # saveData(dtype = 1, sh = single_height, h = height2)
   message("\n")
   stopwatch[2] <- Sys.time()
 }
