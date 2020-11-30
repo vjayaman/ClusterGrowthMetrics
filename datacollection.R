@@ -45,17 +45,24 @@ for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   # HEIGHT 1 - b3 is the coded composition of all clusters at TP2 at this height 
   # which means time2_raw --> filtered --> coded
   height2 <- colnames(time2_raw)[-1][-1][j]
+  
+  write.csv(precc, paste0("outputs/transit/precomp/", height2, ".csv"), row.names = FALSE)
+  
   message(paste0("Threshold h_", height2, " - ", j, " / ", length(colnames(time2_raw)[-1][-1])))
   
   postcc <- clustComp(time2_coded, height2, "h_after")
   ac <- changedClusters(precc, postcc)
-  transit <- noChange(postcc, indices_new, precc, single_height)
+  transit <- noChange(postcc, ac, precc, single_height)
   precc <- postcc %>% set_colnames(c("composition", "h_before"))
   
   # if nrow(changed_comp) > 0, then there is >= one cluster different in composition from previous height
-  if (nrow(changed_comp) > 0) {
+  if (length(ac) > 0) {
     new_height <- oneHeight(time2_raw, time2_coded, height2, novels, meltedTP1, ids, ac, precc)
-    ids <- c(ids, new_height$flagged) %>% unique()
+    if (length(intersect(ids, new_height$flagged)) > 0) {
+      # some clusters are being flagged even though they've been seen before!
+      stop(paste0("Some clusters at height ", height2, " are being flagged even though they've been seen before!"))
+    }
+    ids <- c(ids, new_height$flagged)
     single_height <- new_height %>% bind_rows(transit, .)
     
   }else {
@@ -64,6 +71,9 @@ for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   }
   
   metrics <- addToMetrics(height2, ids, metrics)
+  
+  saveRDS(ids, paste0("outputs/transit/ids/", height2, ".Rds"))
+  write.csv(metrics, paste0("outputs/transit/metrics//", height2, ".csv"), row.names = FALSE)
   
   saveData(dtype = 1, sh = single_height, h = height2)
   message("\n")
