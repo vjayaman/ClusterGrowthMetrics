@@ -21,12 +21,50 @@ readData <- function(filename, file_number) {
   return(time_X)
 }
 
-saveData <- function(h, sh, ids, metrics) {
-  paste0("height_data/h_", h, ".Rds") %>% saveRDS(sh, .)
-  paste0("ids/h_", h, ".Rds") %>% saveRDS(ids, .)
-  paste0("num_ids/h_", h, ".Rds") %>% saveRDS(metrics, .)
+saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL) {
+  if (dtype == 1) {
+    paste0("outputs2/height_data/h_", h, ".Rds") %>% saveRDS(sh, .)
+  }else if (dtype == 2) {
+    saveRDS(sw, "outputs2/stopwatch.Rds")
+    message("\nSaved stopwatch data.")
+  }else if (dtype == 3) {
+    mergeResults("outputs2/height_data/") %>% saveRDS(., "outputs2/results.Rds")
+    message("\nSaved transitory results data - now need to run preparingmetrics.R")
+  }else if (dtype == 4) {
+    write.csv(m, "outputs2/all_clusters_table.csv", row.names = FALSE)
+    write.csv(m[1:10,], "outputs2/first_ten_rows.csv", row.names = FALSE)
+    message("\nSaved metrics to outputs folder.")
+  }
 }
 
+noChange <- function(postcomp, indices_new, precomp, single_height) {
+  # note that there are many clusters that exist at height1 but not at height2
+  # (we are not interested in this representation)
+  # the focus is on clusters that now exist at height2
+  # clusters at height2 that are not in the set of those that changed in composition from height1
+  stayed_the_same <- postcomp %>% 
+    filter(!(composition %in% indices_new)) %>% 
+    left_join(., precomp, by = "composition") %>% 
+    select(-composition)
+  
+  # the result output for clusters that did not change in composition
+  transit <- inner_join(single_height, stayed_the_same, by = c("tp2_cl" = "h_before")) %>% 
+    select(-tp2_cl) %>% rename(tp2_cl = h_after) %>% select(colnames(single_height))
+  transit$tp2_h <- height2
+  return(transit)
+}
+
+# these are the clusters that change in composition from h0 to h1
+# then for h1 at TP2, we only need to find the originating TP1 clusters for these ones, 
+# all other clusters have the same originating cluster as the TP2 h0 clusters
+changedClusters <- function(precomp, postcomp) {
+  # cluster composition that is found at the new height that were different before
+  indices_new <- setdiff(postcomp$composition, precomp$composition)
+  # going to analyze the clusters that are actually different at height2
+  changed_comp <- postcomp %>% filter(composition %in% indices_new)  
+  ac <- changed_comp$h_after
+  return(ac)  
+}
 # --------------------------------------------------------------------------------------------------------------
 # we find the cluster assignments for all isolates at a particular height at TP2 
 # that can be found in the given list of clusters (have not yet originating clusters for these)
@@ -50,11 +88,17 @@ clusterAssignments <- function(h, time2_data, key_clusters, novels) {
 }
 
 # --------------------------------------------------------------------------------------------------------------
-
+# THE PROBLEM: we have three cases
+# (1) the originating cluster has not been seen before --> flag is given
+# (2) the originating cluster has been seen before --> no flag is given 
+#     --> should be clearer, give it a flag "seen before" or "sb"
+# (3) the originating cluster does not exist --> no flag is given (this case was overlooked )
+#     --> that way this remains NA
+#     --> easier to understand the results of the entire analysis later on
 checkID <- function(identifier, kc, x1, ids) {
   if (identifier %in% ids) {
     # if this originating cluster has been seen before, return an unflagged result
-    kc %>% add_column(x1, .after = 1) %>% add_column(flagged = NA) %>% return()
+    kc %>% add_column(x1, .after = 1) %>% add_column(flagged = "sb") %>% return()
   }else {
     # if this originating cluster has never been seen before, return a flagged result, with the ID
     kc %>% add_column(x1, .after = 1) %>% add_column(flagged = identifier) %>% return()
@@ -84,6 +128,18 @@ createID <- function(df, c1, c2) {
   df %>% add_column(id = paste0(pull(df, c1), "-", pull(df, c2))) %>% return()
 }
 
+oneHeight <- function(df, df_coded, h, novel_isolates, meltedTP1, ids, ac, precomp) {
+  # we find the cluster assignments for all isolates at a particular height at TP2 that can be 
+  # found in the given list of clusters (have not yet found originating clusters for these)
+  # dataset of form || isolate (originals) | tp2 height | tp2 cluster | tp2 cluster size ||
+  just_originals <- clusterAssignments(base_case_h, df, ac, novel_isolates)
+  # "just_originals" only includes the original isolates (but still has the actual TP2 cluster sizes) and 
+  # is a dataset of form || isolate | height (at tp2) | cluster (at tp2) | cluster size (at tp2) ||
+  collectionMsg(base_case_h, df, precomp$h_before)
+  resultsProcess(df, ac, meltedTP1, ids, just_originals) %>% return()
+}
+
+# these are all the clusters and their composition
 clustComp <- function(df, height, dtype) {
   message(paste0("Preparing cluster composition IDs for height ", height))
   a1 <- df %>% 
@@ -114,7 +170,7 @@ collectionMsg <- function(h, time2_data, all_clusters) {
 }
 
 
-checkingClusters <- function(dataset, dtype = 2) {
+clusterIDS <- function(dataset, dtype = 2) {
   df <- dataset %>% 
     meltData(., "isolate") %>% 
     factorToInt("variable") %>% 
@@ -128,6 +184,124 @@ checkingClusters <- function(dataset, dtype = 2) {
     df <- df %>% arrange(tp2_h, tp2_cl)
   }
   return(df)
+}
+
+# This part is just to check that all the TP2 clusters are represented
+checkForMissing <- function(df, results, chktype = 1, novel_isolates = NULL) {
+  
+  if (chktype == 1) {
+    # definitely have originals and might have novels
+    omn <- df %>% filter(!(isolate %in% novel_isolates)) %>% clusterIDS(., 1)
+    omn_ids <- omn$id %>% unique() %>% sort()
+    
+    # definitely have novels and might have originals
+    nmo <- df %>% filter(isolate %in% novel_isolates) %>% clusterIDS(., 1)
+    nmo_ids <- nmo$id %>% unique() %>% sort()
+    
+    # novels only - present in the nmo set but not in the omn set
+    novels_only <- setdiff(nmo_ids, omn_ids)
+    
+    # novels and originals - present in both the omn and nmo sets
+    present_in_both <- intersect(omn_ids, nmo_ids)
+    
+    # originals only - present in the omn and not the nmo set
+    originals_only <- setdiff(omn_ids, nmo_ids)
+    
+    in_tracked <- results %>%
+      select(tp2_h, tp2_cl, id) %>%
+      pull(id) %>% unique() %>% sort()
+    x <- sum(length(present_in_both), length(originals_only)) == length(in_tracked)
+  }else {
+    actual_clusters <- df %>% clusterIDS(., 1)
+    result_clusters <- results %>% 
+      select(tp2_h, tp2_cl) %>% unique() %>% 
+      arrange(tp2_h, tp2_cl) %>% 
+      createID(., "tp2_h", "tp2_cl")
+    
+    # if the following is true, then all clusters have been accounted for
+    x <- identical(actual_clusters$id, result_clusters$id)
+  }
+  
+  # checking that the actual clusters match with the output of the tracking process
+  if (isTRUE(x)) {
+    paste0("\nNo missing clusters at stage ", chktype) %>% message() %>% return()
+  }else {
+    stop(message("\nSome of the clusters are missing - not found in the set of tracked clusters"))
+  }
+}
+
+mergeResults <- function(data_dir) {
+  hfiles <- list.files(data_dir)
+  tracked_clusters <- paste0(data_dir, hfiles[1]) %>% readRDS()
+  
+  pb <- progress_bar$new(total = length(hfiles))
+  for (h_file in hfiles[-1]) {
+    pb$tick()
+    next_file <- paste0(data_dir, h_file) %>% readRDS()
+    tracked_clusters <- bind_rows(tracked_clusters, next_file)
+  }
+  tracked_clusters %>% 
+    mutate(across(tp2_h, as.integer)) %>% 
+    arrange(tp1_h, tp1_cl) %>% return()
+}
+
+addNovelsToResults <- function(df, novel_isolates) {
+  # get the TP2 cluster sizes
+  tmp <- clusterIDS(df)
+  
+  all_sizes <- tmp %>% group_by(tp2_h, tp2_cl) %>% 
+    summarise(tp2_cl_size = n(), .groups = "drop") %>% 
+    left_join(tmp, ., by = c("tp2_h", "tp2_cl"))
+  
+  # novel cluster assignments
+  cwn <- tmp %>% filter(isolate %in% novel_isolates)
+  # non-novel cluster assignments
+  cnn <- tmp %>% filter(!(isolate %in% novel_isolates))
+  
+  # the original_tracking dataset has only original isolates
+  # this includes originals that are found in clusters with novels
+  
+  #   - and create a new set with only the novels
+  nov_only <-  all_sizes %>% filter(id %in% setdiff(cwn$id, cnn$id)) %>% 
+    add_column(tp1_h = NA, tp1_cl = NA, tp1_cl_size = 0, flagged = NA) %>% 
+    select(isolate, tp1_h, tp1_cl, tp1_cl_size, tp2_h, tp2_cl, tp2_cl_size, flagged, id)
+  
+  original_tracking %>% bind_rows(., nov_only) %>% return()
+}
+
+addPredictedToResults <- function(x, y, tracked_cl) {
+  # http://r-statistics.co/Loess-Regression-With-R.html
+  loessMod1 <- loess(y ~ x, span = 1)
+  smoothed1 <- predict(loessMod1)
+  
+  loessMod5 <- loess(y ~ x, span = 5)
+  smoothed5 <- predict(loessMod5)
+  
+  lm_df <- tibble(x, y, smoothed1, smoothed5) %>%
+    set_colnames(c("x", "Preset values", "Local regression (span 1)", "Local regression (span 5)")) %>%
+    meltData(., "x") %>% set_colnames(c("Cluster size", "Function", "Growth"))
+  
+  # The model selection step, and using it to determine what the adaptive threshold
+  # function values would be for each input of initial cluster size. Anything that
+  # needs to be extrapolated is set to a pre-determined plateau value of percent increase.
+  
+  model_used <- loessMod1
+  # predict.lm(model_used, data.frame(x = 30)) # note there are different types of prediction methods
+  predicted_y <- predict(model_used, newdata = tracked_cl$tp1_cl_size)
+  na_predicted <- tracked_cl$tp1_cl_size[which(is.na(predicted_y))]
+  
+  if (all(na_predicted > max(lm_df$`Cluster size`))) {
+    predicted_y[is.na(predicted_y)] <- 15
+  }
+  
+  # ## Fold change
+  # # Ranking the data by the actual proportional change over the adaptive threshold requirement,
+  # # to see by how much each cluster exceeds the growth prediction. The data is then saved to
+  # # the current working directory.
+  
+  final_df <- predicted_y %>% round() %>% bind_cols(tracked, predicted = .)
+  final_df$predicted <- final_df$predicted*0.01
+  return(final_df)
 }
 
 # --------------------------------------------------------------------------------------------------------------
@@ -154,7 +328,7 @@ resultsProcess <- function(time2_data, all_clusters, df1, ids, jo) {
       select(-isolate) %>%
       countCases(., "tp1_cl_size") %>% 
       filter(tp1_cl_size == nrow(kc)) %>% 
-      slice(tp1_cl_size = 1)
+      slice(n = 1)
       
     # we add this "originating cluster" to the dataframe with this TP2 cluster
     # if this "originating cluster" is already in the ID list, return with an unflagged notation, 
