@@ -1,40 +1,6 @@
 x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress")
 lapply(x, require, character.only = TRUE)
 
-# TESTING SECTION ---------------------------------------------------------------------------------------------------
-# J <- 1
-# height2 <- colnames(time2_raw)[-1][-1][j]
-# 
-# message(paste0("Threshold h_", height2, " - ", j, " / ", length(colnames(time2_raw)[-1][-1])))
-# 
-# postcc <- clustComp(time2_coded, height2, "h_after")
-# # these are the clusters that changed from TP1 to TP2, and their new composition
-# changed_comp <- changedClusters(precc, postcc)
-# # these are the new clusters, for those that changed in composition
-# ac <- changed_comp$h_after
-# transit <- noChange(postcc, changed_comp$composition, precc, single_height)
-# precc <- postcc %>% set_colnames(c("composition", "h_before"))
-# 
-# # if nrow(changed_comp) > 0, then there is >= one cluster different in composition from previous height
-# if (length(ac) > 0) {
-#   new_height <- oneHeight(time2_raw, time2_coded, height2, novels, meltedTP1, ids, ac, precc)
-#   if (length(intersect(ids, new_height$flagged)) > 1) {
-#     # the > 1 is so that the clusters with the "sb" label don't trigger this error message
-#     stop(paste0("Some clusters at height ", height2, " are being ", 
-#                 "flagged even though they've been seen before!: ", 
-#                 paste0(intersect(ids, new_height$flagged), collapse = ",")))
-#   }
-#   ids <- c(ids, new_height$flagged)
-#   single_height <- new_height %>% bind_rows(transit, .)
-#   
-# }else {
-#   message("No clusters changed from the previous height")
-#   single_height <- transit
-# }
-# 
-# metrics <- addToMetrics(height2, ids, metrics)
-
-
 # DATA HANDLING -----------------------------------------------------------------------------------------------------
 
 get <- .Primitive("[[")
@@ -45,15 +11,14 @@ getUserInput <- function(msg) {
 }
 
 # given the defining filename in:
-# C:\Users\vasen\Documents\Pre-MSc courses\Honours Research Project\SummerProject-2020\, 
-# read in the data
+# C:\Users\vasen\Documents\Pre-MSc courses\Honours Research Project\SummerProject-2020\, read in the data
 readData <- function(filename, file_number) {
   if (is.na(filename)) {
     stop(paste0("Time point ", file_number, " dataset not found."))
   }else {
-    time_X <- read.csv(file = filename, stringsAsFactors = FALSE, numerals = "no.loss", check.names = FALSE) %>% as_tibble()
+    read.csv(file = filename, stringsAsFactors = FALSE, numerals = "no.loss", 
+             check.names = FALSE) %>% as_tibble() %>% return()
   }
-  return(time_X)
 }
 
 saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL) {
@@ -93,19 +58,17 @@ mergeResults <- function(data_dir) {
     tracked_clusters <- bind_rows(tracked_clusters, next_file)
   }
   tracked_clusters %>% 
-    mutate(across(tp2_h, as.integer)) %>% 
-    arrange(tp1_h, tp1_cl) %>% return()
+    mutate(across(tp2_h, as.integer)) %>% return() 
+    # arrange(tp1_h, tp1_cl) %>% return()
 }
-
-# CLUSTER CHANGE PROCESSING -----------------------------------------------------------------------------------------
+# transit <- noChange(postcc, changed_comp, precc, single_height)
 # postcomp <- postcc
-# indices_new <- changed_comp$composition
-# precomp <- precc
 # cc <- changed_comp
-noChange <- function(postcomp, cc, precomp, single_height) {
+# precomp <- precc
+# CLUSTER CHANGE PROCESSING -----------------------------------------------------------------------------------------
+noChange <- function(postcomp, cc, precomp, single_height, ids) {
   # note that there are many clusters that exist at height1 but not at height2
-  # (we are not interested in this representation)
-  # the focus is on clusters that now exist at height2
+  # (we are not interested in this representation) the focus is on clusters that now exist at height2
   indices_new <- cc %>% pull(composition)
   
   # the cluster assignments, before and after, for all the clusters that stayed the same 
@@ -116,16 +79,19 @@ noChange <- function(postcomp, cc, precomp, single_height) {
     select(-composition)
   
   # the result output for clusters that did not change in composition
+  # since the clusters did not change at all, the "flags" should now become "sb"!
   transit <- inner_join(single_height, stayed_the_same, by = c("tp2_cl" = "h_before")) %>% 
-    select(-tp2_cl) %>% rename(tp2_cl = h_after) %>% select(colnames(single_height))
+    select(-tp2_cl) %>% rename(tp2_cl = h_after) %>% 
+    select(colnames(single_height))
   transit$tp2_h <- height2
   
-  # any clusters flagged more than once?
-  a <- transit %>% select(-isolate) %>% unique() %>% pull(flagged) %>% table()
-  if (any(a > 1)) {
-    stop("Some clusters being flagged more than once in the noChange() function.")
+  # just checking:
+  if (all(transit$flagged %in% ids)) {
+    transit$flagged <- "sb"
+  }else {
+    stop("A cluster with a new originating cluster was misclassified. See noChange() function.")
   }
-  
+
   return(transit)
 }
 
@@ -140,10 +106,6 @@ changedClusters <- function(precomp, postcomp) {
   # ac <- changed_comp$h_after
   return(changed_comp)
 }
-
-# time2_data <- df
-# key_clusters <- ac
-# novels <- novel_isolates
   
 # we find the cluster assignments for all isolates at a particular height at TP2 
 # that can be found in the given list of clusters (have not yet originating clusters for these)
@@ -216,16 +178,6 @@ countCases <- function(dataset, last_col) {
 }
 
 # --------------------------------------------------------------------------------------------------------------
-# time2_data <- df
-# all_clusters <- ac
-# df1 <- meltedTP1
-# jo <- just_originals
-# # resultsProcess(df, ac, meltedTP1, ids, just_originals)
-
-# cluster 7-1310 (is the TP1 originating cluster for both 1-1777 and 1-1778 at TP2)
-# it is flagged for both, when it should only be flagged for 1-1777 --> regardless of the change in cluster 
-# size, new clusters should only be flagged once per originating cluster
-
 resultsProcess <- function(time2_data, all_clusters, df1, ids, jo) {
   # given the heights and cluster assignments for all TP1 isolates, we filter to keep only the genomes found 
   # in a particular cluster kc, then we identify all the clusters at TP1 that only contain these genomes
@@ -299,18 +251,14 @@ clustComp <- function(df, height, dtype) {
     return()
 }
 
+# cluster 7-1310 (is the TP1 originating cluster for both 1-1777 and 1-1778 at TP2)
+# it is flagged for both, when it should only be flagged for 1-1777 --> regardless of the change in cluster 
+# size, new clusters should only be flagged once per originating cluster
 # df <- time2_raw
 # df_coded <- time2_coded
 # h <- height2
 # novel_isolates <- novels
-# # meltedTP1
-# # ids
-# # ac
 # precomp <- precc
-
-# cluster 7-1310 (is the TP1 originating cluster for both 1-1777 and 1-1778 at TP2)
-# it is flagged for both, when it should only be flagged for 1-1777 --> regardless of the change in cluster 
-# size, new clusters should only be flagged once per originating cluster
 
 oneHeight <- function(df, df_coded, h, novel_isolates, meltedTP1, ids, ac, precomp) {
   # we find the cluster assignments for all isolates at a particular height at TP2 that can be 
@@ -337,10 +285,7 @@ collectionMsg <- function(h, time2_data, all_clusters) {
 }
 
 # FUNCTIONS FOR TESTINGS --------------------------------------------------------------------------------------------
-# df <- time2_raw
-# results <- original_tracking
-# chktype <- 1
-# novel_isolates <- novels
+
 # This part is just to check that all the TP2 clusters are represented
 checkForMissing <- function(df, results, chktype = 1, novel_isolates = NULL) {
   
