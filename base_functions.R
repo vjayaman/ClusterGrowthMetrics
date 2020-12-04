@@ -10,8 +10,7 @@ getUserInput <- function(msg) {
   op = readLines(con = "stdin", 1)
 }
 
-# given the defining filename in:
-# C:\Users\vasen\Documents\Pre-MSc courses\Honours Research Project\SummerProject-2020\, read in the data
+# given the defining filename, read in the data (need the full path from your working directory)
 readData <- function(filename, file_number) {
   if (is.na(filename)) {
     stop(paste0("Time point ", file_number, " dataset not found."))
@@ -21,6 +20,8 @@ readData <- function(filename, file_number) {
   }
 }
 
+# Used after datacollection.R is done, merges the separate height files into one and saves them as a 
+# results file of the tracked clusters, to be used in preparingmetrics.R to generate the metrics file
 mergeResults <- function(data_dir) {
   hfiles <- list.files(data_dir)
   tracked_clusters <- paste0(data_dir, hfiles[1]) %>% readRDS()
@@ -144,41 +145,42 @@ countCases <- function(dataset, last_col) {
 # these are all the clusters and their composition
 clustComp <- function(df, height, dtype) {
   message(paste0("Preparing cluster composition IDs for height ", height))
-  a1 <- df %>% 
-    select(isolate, all_of(height)) %>% 
+  a1 <- df %>% select(isolate, all_of(height)) %>% 
     set_colnames(c("isolate", "tp2_cl"))
   clusters <- a1$tp2_cl %>% unique()
   
   hx <- list("a1" = a1, "cl" = clusters)
   
   lapply(1:length(hx$cl), function(i) {
-    filter(hx$a1, tp2_cl == hx$cl[i]) %>% 
-      pull(isolate) %>% 
+    filter(hx$a1, tp2_cl == hx$cl[i]) %>% pull(isolate) %>% 
       paste0(collapse = ",") %>% return()
   }) %>% unlist() %>% 
-    tibble(., hx$cl) %>% 
-    set_colnames(c("composition", dtype)) %>% 
-    return()
+    tibble(., hx$cl) %>% set_colnames(c("composition", dtype)) %>% return()
 }
 
 # MESSAGES FOR USER -------------------------------------------------------------------------------------------------
 
 collectionMsg <- function(h, time2_data, all_clusters) {
   if (match(h, colnames(time2_data)) == 2) { # if h == "0"
-    message(paste0("Collecting data for the ", length(all_clusters), 
-                   " clusters at height ", h, " (base case)"))
+    message(paste0("Collecting data for the ", length(all_clusters), " clusters at height ", h, " (base case)"))
   }else {
-    message(paste0("Collecting data for the ", length(all_clusters), " cluster(s) ", 
-                   "that changed in composition from the previous height to the ", 
-                   "current height, ", h))    
+    message(paste0("Collecting data for the ", length(all_clusters), " cluster(s) that ", 
+                   "changed in composition from the previous height to the current height, ", h))    
   }
 }
 
 addToMetrics <- function(height, ids, metrics) {
-  if (missing(metrics)) {
-    # must be at height 0
+  if (missing(metrics)) { # at height 0
     tibble(h = height, number_of_ids = length(ids)) %>% return()
   }else {
     metrics %>% add_row(tibble(h = height, number_of_ids = length(ids))) %>% return()
   }
+}
+
+timeTaken <- function(pt, sw) {
+  t1 <- (sw[['end_time']] - sw[['start_time']])/60/60
+  t2 <- abs(t1 - trunc(t1))*60
+  t3 <- abs(t2 - trunc(t2))*60
+  message(paste0("The ", pt, " process took ", trunc(t1), " hours, ", 
+                 trunc(t2), " minutes, and ", trunc(t3), " seconds."))
 }

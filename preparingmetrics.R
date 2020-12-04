@@ -1,6 +1,8 @@
 
-source("flagging_functions.R")
+source("processing_functions.R")
 testing <- TRUE
+stopwatch <- rep(0,2) %>% set_names(c("start_time", "end_time"))
+stopwatch[1] <- Sys.time()
 
 pb <- progress_bar$new(total = 22)
 pb$tick()
@@ -27,13 +29,8 @@ pb$tick()
 original_tracking <- readRDS("outputs/results.Rds") %>% createID(., "tp2_h", "tp2_cl")
 pb$tick()
 
-every_case <- time2_raw %>% 
-  melt(., id = "isolate") %>% as_tibble() %>% 
-  set_colnames(c("isolate","tp2_h", "tp2_cl")) %>% 
-  arrange(isolate, tp2_h, tp2_cl) %>% 
-  mutate(across(tp2_h, as.character)) %>% 
-  mutate(across(tp2_h, as.integer)) %>% 
-  createID(., "tp2_h", "tp2_cl")
+every_case <- clusterIDS(time2_raw)
+
 pb$tick()
 pb$tick()
 
@@ -109,12 +106,9 @@ if (testing) {
 }
 pb$tick()
 
-nov_only <- nov_only %>% group_by(tp2_h, tp2_cl) %>% 
-  summarise(tp2_cl_size = n(), .groups = "drop") %>% 
-  left_join(nov_only, ., by = c("tp2_h", "tp2_cl")) %>% 
-  arrange(tp2_h, tp2_cl)
-
 nov_only <- nov_only %>% 
+  select(-isolate, -id) %>% countCases("tp2_cl_size") %>% 
+  left_join(nov_only, ., by = c("tp2_h", "tp2_cl")) %>% arrange(tp2_h, tp2_cl) %>% 
   add_column(tp1_h = NA, tp1_cl = NA, tp1_cl_size = 0, flagged = NA) %>% 
   select(colnames(metrics))
 
@@ -193,30 +187,25 @@ if (all(na_predicted > max(lm_df$`Cluster size`))) {
 # # to see by how much each cluster exceeds the growth prediction. The data is then saved to
 # # the current working directory.
 
-final_df <- predicted_y %>% round() %>% bind_cols(metrics, predicted = .)
-final_df$predicted <- final_df$predicted*0.01
+transit <- predicted_y %>% round() %>% bind_cols(metrics, predicted = .)
+transit$predicted <- transit$predicted*0.01
 
 ## Fold change columns, convert decimals to percent
-final_df$fold_change <- final_df$prop_inc %>% 
-  '/'(final_df$predicted) %>% 
-  round(., digits = 3)
+transit$fold_change <- (transit$prop_inc / transit$predicted) %>% round(., digits = 3)
 
-final_df <- final_df %>% arrange(., -fold_change)
+transit <- transit %>% arrange(., -fold_change)
 
-not_na <- which(!is.na(final_df$prop_inc))
-final_df$prop_inc[not_na] <- final_df$prop_inc[not_na] %>% scales::percent() 
-final_df$predicted[not_na] <- final_df$predicted[not_na] %>% scales::percent()
+not_na <- which(!is.na(transit$prop_inc))
+transit$prop_inc[not_na] <- transit$prop_inc[not_na] %>% scales::percent() 
+transit$predicted[not_na] <- transit$predicted[not_na] %>% scales::percent()
 
 # We still need a column with the number of novels in each TP2 cluster (note that this may not correspond 
 # exactly with the change in a cluster's size from TP1 to TP2)
-nn <- every_case %>% 
-  filter(isolate %in% novels) %>% 
-  select(tp2_h, tp2_cl) %>% 
-  group_by_all() %>% 
-  summarise(number_novels = n(), .groups = "drop") %>% 
+nn <- every_case %>% filter(isolate %in% novels) %>% 
+  select(tp2_h, tp2_cl) %>% countCases("number_novels") %>% 
   createID(., "tp2_h", "tp2_cl")
 
-results <- final_df %>% left_join(nn, by = c("tp2_h", "tp2_cl", "id")) %>% 
+results <- transit %>% left_join(nn, by = c("tp2_h", "tp2_cl", "id")) %>% 
   select(isolate, tp1_h, tp1_cl, tp2_h, tp2_cl, tp1_cl_size, tp2_cl_size, 
          flagged, number_novels, prop_inc, predicted, fold_change) %>% 
   set_colnames(c("Isolate", "Height (TP1)", "Cluster (TP1)", "Height (TP2)", "Cluster (TP2)", 
@@ -225,3 +214,6 @@ results <- final_df %>% left_join(nn, by = c("tp2_h", "tp2_cl", "id")) %>%
                  "Fold change (Growth / Threshold)"))
 
 saveData(dtype = 4, m = results)
+stopwatch[2] <- Sys.time()
+
+timeTaken(pt = "preparing metrics", stopwatch)

@@ -1,6 +1,6 @@
 source("base_functions.R")
 
-saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL) {
+saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL, transit) {
   if (dtype == 1) {
     paste0("outputs/height_data/h_", h, ".Rds") %>% saveRDS(sh, .)
   }else if (dtype == 2) {
@@ -13,6 +13,11 @@ saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL) {
     write.csv(m, "outputs/all_clusters_table.csv", row.names = FALSE)
     write.csv(m[1:10,], "outputs/first_ten_rows.csv", row.names = FALSE)
     message("\nSaved metrics to outputs folder.")
+  }else if (dtype == 5) {
+    saveRDS(transit[['i']], paste0("outputs/transit/ids/h_", h, ".Rds"))
+    saveRDS(transit[['po']], paste0("outputs/transit/postcc//h_", h, ".Rds"))
+    saveRDS(transit[['pr']], paste0("outputs/transit/precc//h_", h, ".Rds"))
+    saveRDS(transit[['m']], paste0("outputs/transit/metrics/h_", h, ".Rds"))
   }
 }
 
