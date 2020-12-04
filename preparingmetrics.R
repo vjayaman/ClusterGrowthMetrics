@@ -1,5 +1,7 @@
 
 source("flagging_functions.R")
+testing <- TRUE
+
 pb <- progress_bar$new(total = 22)
 pb$tick()
 
@@ -32,21 +34,27 @@ every_case <- time2_raw %>%
   mutate(across(tp2_h, as.character)) %>% 
   mutate(across(tp2_h, as.integer)) %>% 
   createID(., "tp2_h", "tp2_cl")
+pb$tick()
+pb$tick()
 
-# check1a <- every_case %>% 
-#   filter(!(isolate %in% novels))
-# 
-# check1b <- original_tracking %>% 
-#   select(isolate, tp2_h, tp2_cl) %>% 
-#   arrange(isolate, tp2_h, tp2_cl) %>% 
-#   createID(., "tp2_h", "tp2_cl")
-# 
-# identical(check1a, check1b)
-
-# cl_w_orig <- check1a$id %>% unique()
-# TRUE --> in the results file, we have all the TP2 cluster assignments for the original isolates as
-# well as the metrics of their originating clusters and flags for when they first emerged from a
-# TP1 cluster
+if (testing) {
+  check1a <- every_case %>%
+    filter(!(isolate %in% novels))
+  
+  check1b <- original_tracking %>%
+    select(isolate, tp2_h, tp2_cl) %>%
+    arrange(isolate, tp2_h, tp2_cl) %>%
+    createID(., "tp2_h", "tp2_cl")
+  
+  # TRUE --> in the results file, we have all the TP2 cluster assignments for the original isolates as well 
+  # as the metrics of their originating clusters and flags for when they first emerged from a TP1 cluster
+  if (identical(check1a, check1b)) {
+    message("Confirming that the output of datacollection.R covers all clusters that contain original isolates.")
+  }else {
+    message("Problem: There are some clusters with original isolates that were not tracked.")
+  }
+}
+pb$tick()
 
 # WHAT WE NEED TO ADD:
 # information regarding novels
@@ -56,18 +64,19 @@ every_case <- time2_raw %>%
 #   b) clusters that are entirely composed of novels at TP2 (i.e. did not exist at TP1)
 
 # PART 1: novel only TP2 clusters
-nov_cl <- every_case %>% 
-  filter(isolate %in% novels)
+nov_cl <- every_case %>% filter(isolate %in% novels)
+orig_cl <- every_case %>% filter(!(isolate %in% novels))
+both <- every_case %>% filter(id %in% intersect(nov_cl$id, orig_cl$id))
+pb$tick()
 
-orig_cl <- every_case %>% 
-  filter(!(isolate %in% novels))
-
-# ----------------------------------------------------------------------------------------------------
-both <- every_case %>% 
-  filter(id %in% intersect(nov_cl$id, orig_cl$id))
-
-# check that all of these clusters have been properly tracked: 
-all(both$id %in% original_tracking$id)       # should be TRUE
+if (testing) {
+  if (all(both$id %in% original_tracking$id)) {
+    message("Confirming that all the clusters that contain both novels and originals have been tracked.")
+  }else {
+    message("Problem: There are clusters with original and novel isolates that were not tracked.")
+  }
+}
+pb$tick()
 
 # removing the originals, since we already have that information in original_tracking
 both_n <- both %>% filter(isolate %in% novels)
@@ -75,18 +84,30 @@ oan <- original_tracking %>% select(-isolate) %>%
   filter(id %in% both$id) %>% unique() %>% 
   left_join(both_n, ., by = c("tp2_h", "tp2_cl", "id"))
 
-
 metrics <- original_tracking %>% bind_rows(., oan)
-
+pb$tick()
+pb$tick()
 # ----------------------------------------------------------------------------------------------------
 nov_only <- every_case %>% 
   filter(id %in% nov_cl$id) %>% 
   filter(!(id %in% orig_cl$id))
+pb$tick()
 
-# checking that these are clusters we haven't dealt with yet
-any(nov_only$id %in% metrics$id)
-# checking that all the isolates are not present in TP1
-any(nov_only$isolate %in% time1_raw$isolate)
+if (testing) {
+  # checking that these are clusters we haven't dealt with yet
+  if (!any(nov_only$id %in% metrics$id)) {
+    message("Confirming that the novel-only clusters have not been dealt with yet.")
+  }else {
+    message("Problem: Some of the novel-only clusters have been tracked (somehow) so far.")
+  }
+  # checking that all the isolates are not present in TP1
+  if (any(nov_only$isolate %in% time1_raw$isolate)) {
+    message("Problem: Some of the isolates were mislabelled as novel.")
+  }else {
+    message("Confirming that the list of novels we have at this point is accurate.")
+  }
+}
+pb$tick()
 
 nov_only <- nov_only %>% group_by(tp2_h, tp2_cl) %>% 
   summarise(tp2_cl_size = n(), .groups = "drop") %>% 
@@ -97,17 +118,28 @@ nov_only <- nov_only %>%
   add_column(tp1_h = NA, tp1_cl = NA, tp1_cl_size = 0, flagged = NA) %>% 
   select(colnames(metrics))
 
-# checking that these clusters have not been accounted for
-any(nov_only$id %in% metrics$id)
+if (testing) {
+  # checking that these clusters have not been accounted for
+  if (any(nov_only$id %in% metrics$id)) {
+    message("Problem: Some of the novel-only clusters have been tracked already.")
+  }else {
+    message("Confirming that the novel-only clusters have not been tracked yet.")
+  }
+}
 
 metrics <- metrics %>% bind_rows(., nov_only)
 
-# checking that all TP2 clusters have been now accounted before, and that there 
-# are no repeats or other anomalies
-all(every_case$id %in% metrics$id)
-a <- metrics$id %>% sort()
-b <- every_case$id %>% sort()
-identical(a, b)
+if (testing) {
+  # checking that all TP2 clusters have been now accounted before, and that there 
+  # are no repeats or other anomalies
+  a <- metrics$id %>% sort()
+  b <- every_case$id %>% sort()
+  if (identical(a, b)) {
+    message("Confirming that all TP2 clusters have now been accounted for.")
+  }else {
+    message("Problem: There are TP2 clusters that have been overlooked, and are now not account for.")
+  }
+}
 
 # TWO CASES FOR PROPORTIONAL INCREASE HANDLING
 #   a) clusters did not exist at TP1 (denominator of zero)

@@ -50,21 +50,17 @@ factorToInt <- function(dataset, cname) {
 mergeResults <- function(data_dir) {
   hfiles <- list.files(data_dir)
   tracked_clusters <- paste0(data_dir, hfiles[1]) %>% readRDS()
-  
+
   pb <- progress_bar$new(total = length(hfiles))
   for (h_file in hfiles[-1]) {
     pb$tick()
     next_file <- paste0(data_dir, h_file) %>% readRDS()
     tracked_clusters <- bind_rows(tracked_clusters, next_file)
   }
-  tracked_clusters %>% 
-    mutate(across(tp2_h, as.integer)) %>% return() 
-    # arrange(tp1_h, tp1_cl) %>% return()
+  tracked_clusters %>%
+    mutate(across(tp2_h, as.integer)) %>% return()
 }
-# transit <- noChange(postcc, changed_comp, precc, single_height)
-# postcomp <- postcc
-# cc <- changed_comp
-# precomp <- precc
+
 # CLUSTER CHANGE PROCESSING -----------------------------------------------------------------------------------------
 noChange <- function(postcomp, cc, precomp, single_height, ids) {
   # note that there are many clusters that exist at height1 but not at height2
@@ -161,12 +157,11 @@ clusterIDS <- function(dataset, dtype = 2) {
     createID(., "tp2_h", "tp2_cl")
   
   if (dtype == 1) {
-    df <- df %>% select(-isolate) %>% unique() %>% 
-      arrange(tp2_h, tp2_cl)
+    df %>% select(-isolate) %>% unique() %>% 
+      arrange(tp2_h, tp2_cl) %>% return()
   }else {
-    df <- df %>% arrange(tp2_h, tp2_cl)
+    df %>% arrange(tp2_h, tp2_cl) %>% return()
   }
-  return(df)
 }
 
 countCases <- function(dataset, last_col) {
@@ -254,11 +249,6 @@ clustComp <- function(df, height, dtype) {
 # cluster 7-1310 (is the TP1 originating cluster for both 1-1777 and 1-1778 at TP2)
 # it is flagged for both, when it should only be flagged for 1-1777 --> regardless of the change in cluster 
 # size, new clusters should only be flagged once per originating cluster
-# df <- time2_raw
-# df_coded <- time2_coded
-# h <- height2
-# novel_isolates <- novels
-# precomp <- precc
 
 oneHeight <- function(df, df_coded, h, novel_isolates, meltedTP1, ids, ac, precomp) {
   # we find the cluster assignments for all isolates at a particular height at TP2 that can be 
@@ -330,6 +320,7 @@ checkForMissing <- function(df, results, chktype = 1, novel_isolates = NULL) {
   }
 }
 
+
 addNovelsToResults <- function(df, novel_isolates) {
   # get the TP2 cluster sizes
   tmp <- clusterIDS(df)
@@ -353,6 +344,7 @@ addNovelsToResults <- function(df, novel_isolates) {
   
   original_tracking %>% bind_rows(., nov_only) %>% return()
 }
+
 
 addPredictedToResults <- function(x, y, tracked_cl) {
   # http://r-statistics.co/Loess-Regression-With-R.html
@@ -388,6 +380,7 @@ addPredictedToResults <- function(x, y, tracked_cl) {
   final_df$predicted <- final_df$predicted*0.01
   return(final_df)
 }
+
 
 addToMetrics <- function(height, ids, metrics) {
   if (missing(metrics)) {
