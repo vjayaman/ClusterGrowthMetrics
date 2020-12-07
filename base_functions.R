@@ -1,4 +1,4 @@
-x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress")
+x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", "tcltk")
 lapply(x, require, character.only = TRUE)
 
 # DATA HANDLING -----------------------------------------------------------------------------------------------------
@@ -182,5 +182,10 @@ timeTaken <- function(pt, sw) {
   t2 <- abs(t1 - trunc(t1))*60
   t3 <- abs(t2 - trunc(t2))*60
   message(paste0("The ", pt, " process took ", trunc(t1), " hours, ", 
-                 trunc(t2), " minutes, and ", trunc(t3), " seconds."))
+                 trunc(t2), " minutes, and ", trunc(t3), " seconds.\n"))
 }
+
+externalProgressBar <- function(x, i, msg) {
+  setTkProgressBar(x, i, title = paste0("Progress of metrics prep: ", round(i/total*100, 0), "% done"), label = msg)
+}
+

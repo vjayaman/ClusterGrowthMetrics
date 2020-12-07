@@ -1,5 +1,3 @@
-source("base_functions.R")
-
 saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL, transit) {
   if (dtype == 1) {
     paste0("outputs/height_data/h_", h, ".Rds") %>% saveRDS(sh, .)
