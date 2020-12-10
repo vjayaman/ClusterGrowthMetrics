@@ -2,8 +2,8 @@
 title: "metrics_rmarkdown_version"
 output: html_document
 params:
-  data1: european-t1_clusters.csv
-  data2: european-t2_clusters.csv
+  data1: data/timepoint1_data.csv
+  data2: data/timepoint2_data.csv
 ---
 
 ```{r setup, include=FALSE}
@@ -28,7 +28,7 @@ All input data sets should be moved to the 'data' directory before running this 
 message("Loading datafiles")
 
 if (file.exists(params$data1)) {
-  time1 <- read.csv(file = params$data1, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+  time1 <- read.csv(file = params$data1, stringsAsFactors = FALSE, numerals = "no.loss", check.names = FALSE) %>% as_tibble()
 }else {
   stop(paste0("File at \'", params$data1, "\' not found."))
 }
@@ -37,7 +37,7 @@ X <- 1
 message("Successfully read TP1 data")
 
 if (file.exists(params$data2)) {
-  time2 <- read.csv(file = params$data2, stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble()
+  time2 <- read.csv(file = params$data2, stringsAsFactors = FALSE, numerals = "no.loss", check.names = FALSE) %>% as_tibble()
 }else {
   stop(paste0("File at \'", params$data2, "\' not found."))
 }
@@ -89,6 +89,7 @@ df2_sizes <- df2 %>% set_colnames(c("Isolate", "TP2_h", "TP2_cl", "ID")) %>%
 # The foundational frame of cluster data:
 #   - sizes and membership at each time point, 
 #   - as well as the proportional increase from TP1 to TP2, in decimal form
+#   - merging using isolate as an identifier
 message("Merging time point data for comparison")
 df_all <- right_join(df1_sizes, df2_sizes, by = c("Isolate", "ID"))
 
