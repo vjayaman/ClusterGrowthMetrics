@@ -8,22 +8,19 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-source("base_functions.R")
-source("processing_functions.R")
-x <- c("ggplot2", "plotly", "flexdashboard", "RColorBrewer")
-library(shinyjs)
+source("../functions/base_functions.R")
+source("../functions/processing_functions.R")
+x <- c("ggplot2", "plotly", "flexdashboard", "RColorBrewer", "shinyjs")
 lapply(x, require, character.only = TRUE)
 
 # library(googlesheets4); library(googledrive)
 # metrics <- readData("../outputs/all_clusters_table.csv") %>% 
 #   set_colnames(c("isolate", "tp1_h", "tp1_cl", "tp2_h", "tp2_cl", "tp1_cl_size", 
 #                  "tp2_cl_size", "flag", "num_novels", "prop_inc", "adap_thresh", "fold_change"))
-metrics <- readRDS("data/metrics.Rds")
-
-flagged_w_iso <- metrics %>% filter(flag != "sb")
+metrics <- readRDS("../data/metrics.Rds")
 
 # clusters <- metrics %>% select(-isolate) %>% unique()
-clusters <- readRDS("data/clusters.Rds") %>% 
+clusters <- readRDS("../data/clusters.Rds") %>% 
   createID("tp1_h", "tp1_cl") %>% rename(tp1_id = id) %>% 
   createID("tp2_h", "tp2_cl") %>% rename(tp2_id = id)
 
@@ -32,8 +29,8 @@ flagged$num_novels[is.na(flagged$num_novels)] <- 0
 
 # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
 # the raw datasets, no filtering or other changes made
-time1_raw <- "data/timepoint1_data.csv" %>% readData(.,1)
-time2_raw <- "data/timepoint2_data.csv" %>% readData(.,2)
+time1_raw <- "../data/timepoint1_data.csv" %>% readData(.,1)
+time2_raw <- "../data/timepoint2_data.csv" %>% readData(.,2)
 
 a1 <- time1_raw %>% dplyr::select(-isolate) %>% 
     melt() %>% as_tibble() %>% unique() %>% 
@@ -50,7 +47,7 @@ a2 <- time2_raw %>% dplyr::select(-isolate) %>%
 a3 <- full_join(a1, a2, by = "h") %>% as_tibble() %>% 
   melt(id = "h") %>% as_tibble() %>% factorToInt("h") %>% 
   set_colnames(c("Height", "Timepoint", "Number of clusters"))
-shinyjs::useShinyjs(rmd = TRUE)
+# shinyjs::useShinyjs(rmd = TRUE)
 ```
 
 
@@ -80,10 +77,6 @@ numericInput("violin_ms", "Minimum cluster size to include in the violin plot:",
 ```
 
 ### Data snapshot (of `r nrow(clusters)` rows)
-```{r}
-# DT::renderDataTable({clusters[1:10,]})
-```
-
 ### Chart D
 
 Row {data-height=750 .tabset}
@@ -186,7 +179,7 @@ Row {data-height=750 .tabset}
 ### ALL TP1 cluster sizes 
 ```{r}
 renderPlotly({
-  min_size <- 10#input$fc_ms_tp1
+  min_size <- input$fc_ms_tp1
   df_tp1 <- flagged$tp1_cl_size %>% 
     plotCS("tp1_cl_size") %>% 
     filter(tp1_cl_size >= min_size)# %>% filter(count > 1)
@@ -201,7 +194,7 @@ renderPlotly({
 ### ALL TP2 cluster sizes 
 ```{r}
 renderPlotly({
-  min_size <- 10#input$fc_ms_tp2
+  min_size <- input$fc_ms_tp2
   df_tp2 <- flagged$tp2_cl_size %>% 
     plotCS("tp2_cl_size") %>% 
     filter(tp2_cl_size >= min_size)# %>% filter(count > 1)
@@ -216,7 +209,7 @@ renderPlotly({
 ### Violin plot of cluster sizes
 ```{r}
 renderPlotly({
-  min_size <- 10#input$fc_violin_ms
+  min_size <- input$fc_violin_ms
   a <- flagged[,c("tp1_cl_size", "tp2_cl_size")] %>% 
     set_colnames(c("TP1", "TP2")) %>% melt() %>% 
     as_tibble() %>% set_colnames(c("tp", "cs")) %>% 
@@ -235,7 +228,78 @@ renderPlotly({
 ```
 
 
-Page 3 {data-orientation=columns}
+
+Page 3 
+=======================================================================
+Row {data-height=500}
+-----------------------------------------------------------------------
+
+### Chart A
+```{r}
+DT::dataTableOutput("flaggedDT")
+output$flaggedDT <- DT::renderDataTable({
+  DT::datatable(flagged, rownames = FALSE, class = "cell-border stripe", 
+                options = list(pageLength = nrow(flagged), scrollY = "375px", dom = "tif", 
+                               columnDefs = list(list(className = "dt-center", targets = "_all"))), 
+                selection = list(target = "row", mode = "single"))
+}, server = TRUE)
+
+# DT::datatable(metrics, options = list(columnDefs = list(list(className = "dt-center", targets = "_all")), 
+#                                      dom = "ti", pageLength = nrow(b2), scrollY = "500px"), 
+#                   rownames = FALSE, filter = "none", container = sketch, class = 'cell-border stripe', 
+#                   selection = list(target = "cell", mode = "single")) %>% 
+#       formatStyle(3:5, border = '1px solid #ddd')
+```
+
+
+Row {data-height=500 .tabset}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r}
+DT::dataTableOutput("selectedClusters")
+
+output$selectedClusters <- DT::renderDataTable({
+  req(input$flaggedDT_rows_selected)
+  
+  selected <- flagged[input$flaggedDT_rows_selected,]
+  df <- metrics %>% filter(tp2_h == selected$tp2_h & tp2_cl == selected$tp2_cl)
+  DT::datatable(df, rownames = FALSE, class = "cell-border stripe", 
+                options = list(pageLength = nrow(df), scrollY = "375px", dom = "tif", 
+                               columnDefs = list(list(className = "dt-center", targets = 1:(ncol(df)-1)))), 
+                selection = list(target = "row", mode = "single"))
+})
+```
+
+### Chart C
+
+```{r}
+
+```
+
+```{r}
+# gs_link <- "https://docs.google.com/spreadsheets/d/1k7XfQfoVaXCvgdhn57SCu0SI6p2M665hpiogSI-Zw5U/edit?usp=sharing"
+# gs_id <- "1k7XfQfoVaXCvgdhn57SCu0SI6p2M665hpiogSI-Zw5U"
+# # first time this is run, we need to authenticate the google account associated with the sheet
+# # need to grant Tidyverse API Packages permission to access the data
+# drive_get("cgm_data") %>% read_sheet()
+
+# flagged_w_iso <- metrics %>% filter(flag != "sb")
+# flagged_w_iso <- metrics %>% filter(flag != "sb")
+# cgm_data <- sheet_write(flagged_w_iso)
+```
+
+
+```{r}
+
+# DT::datatable(flagged_w_iso, options = list(columnDefs = list(list(className = "dt-center", targets = "_all")),
+#                                      dom = "ti", pageLength = nrow(flagged_w_iso), scrollY = "500px"),
+#                   rownames = FALSE, class = 'cell-border stripe')
+```
+
+
+Page 4 {data-orientation=columns}
 =======================================================================
 Column {data-width=500}
 -----------------------------------------------------------------------
@@ -254,7 +318,8 @@ ids <- flagged %>% filter(num_novels != 0) %>% pull(tp1_id)
 
 df <- clusters %>% filter(tp1_id %in% ids) %>% arrange(tp1_h, tp1_cl)
 
-selectInput("flagged_clusters", "Select a TP1 originating cluster to track through TP2:", choices = df$tp1_id %>% unique())
+selectInput(inputId = "flagged_clusters", choices = df$tp1_id %>% unique(), 
+            label = "Select a TP1 originating cluster to track through TP2:")
 ```
 
 ```{r}
@@ -330,24 +395,19 @@ Column {data-width=500}
 ```
 
 
-Page 4 {data-orientation=columns}
+Page 5 {data-orientation=columns}
 =======================================================================
-Column {data-width=500}
+Column {data-width=900}
 -----------------------------------------------------------------------
 
-### Chart A1
-
 ```{r}
 
 ```
 
-### Chart A2
+### Data snapshot (of `r nrow(clusters)` rows)
 
-```{r}
 
-```
-
-Column {data-width=500}
+Column {data-width=100}
 -----------------------------------------------------------------------
 
 ### Chart B
@@ -362,26 +422,3 @@ Column {data-width=500}
 
 ```
 
-```{r}
-# DT::datatable(metrics, options = list(columnDefs = list(list(className = "dt-center", targets = "_all")), 
-#                                      dom = "ti", pageLength = nrow(b2), scrollY = "500px"), 
-#                   rownames = FALSE, filter = "none", container = sketch, class = 'cell-border stripe', 
-#                   selection = list(target = "cell", mode = "single")) %>% 
-#       formatStyle(3:5, border = '1px solid #ddd')
-# gs_link <- "https://docs.google.com/spreadsheets/d/1k7XfQfoVaXCvgdhn57SCu0SI6p2M665hpiogSI-Zw5U/edit?usp=sharing"
-# gs_id <- "1k7XfQfoVaXCvgdhn57SCu0SI6p2M665hpiogSI-Zw5U"
-# # first time this is run, we need to authenticate the google account associated with the sheet
-# # need to grant Tidyverse API Packages permission to access the data
-# drive_get("cgm_data") %>% read_sheet()
-
-# flagged_w_iso <- metrics %>% filter(flag != "sb")
-# cgm_data <- sheet_write(flagged_w_iso)
-```
-
-
-```{r}
-
-# DT::datatable(flagged_w_iso, options = list(columnDefs = list(list(className = "dt-center", targets = "_all")),
-#                                      dom = "ti", pageLength = nrow(flagged_w_iso), scrollY = "500px"),
-#                   rownames = FALSE, class = 'cell-border stripe')
-```
