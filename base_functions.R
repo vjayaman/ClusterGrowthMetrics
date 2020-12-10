@@ -189,3 +189,9 @@ externalProgressBar <- function(x, i, msg) {
   setTkProgressBar(x, i, title = paste0("Progress of metrics prep: ", round(i/total*100, 0), "% done"), label = msg)
 }
 
+plotCS <- function(dfx, cname) {
+  dfx %>% table() %>% 
+    as.data.frame() %>% as_tibble() %>% 
+    set_colnames(c(cname, "count")) %>% 
+    factorToInt(cname) %>% return()
+}

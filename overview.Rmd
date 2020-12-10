@@ -1,0 +1,387 @@
+---
+title: "Overview"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    output: html_document
+---
+
+```{r setup, include=FALSE}
+source("base_functions.R")
+source("processing_functions.R")
+x <- c("ggplot2", "plotly", "flexdashboard", "RColorBrewer")
+library(shinyjs)
+lapply(x, require, character.only = TRUE)
+
+# library(googlesheets4); library(googledrive)
+# metrics <- readData("../outputs/all_clusters_table.csv") %>% 
+#   set_colnames(c("isolate", "tp1_h", "tp1_cl", "tp2_h", "tp2_cl", "tp1_cl_size", 
+#                  "tp2_cl_size", "flag", "num_novels", "prop_inc", "adap_thresh", "fold_change"))
+metrics <- readRDS("data/metrics.Rds")
+
+flagged_w_iso <- metrics %>% filter(flag != "sb")
+
+# clusters <- metrics %>% select(-isolate) %>% unique()
+clusters <- readRDS("data/clusters.Rds") %>% 
+  createID("tp1_h", "tp1_cl") %>% rename(tp1_id = id) %>% 
+  createID("tp2_h", "tp2_cl") %>% rename(tp2_id = id)
+
+flagged <- clusters %>% filter(flag != "sb")
+flagged$num_novels[is.na(flagged$num_novels)] <- 0
+
+# the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
+# the raw datasets, no filtering or other changes made
+time1_raw <- "data/timepoint1_data.csv" %>% readData(.,1)
+time2_raw <- "data/timepoint2_data.csv" %>% readData(.,2)
+
+a1 <- time1_raw %>% dplyr::select(-isolate) %>% 
+    melt() %>% as_tibble() %>% unique() %>% 
+    group_by(variable) %>% 
+    summarise(n = n(), .groups = "drop") %>% 
+    set_colnames(c("h", "TP1"))
+
+a2 <- time2_raw %>% dplyr::select(-isolate) %>% 
+  melt() %>% as_tibble() %>% unique() %>% 
+  group_by(variable) %>% 
+  summarise(n = n(), .groups = "drop") %>% 
+  set_colnames(c("h", "TP2"))
+
+a3 <- full_join(a1, a2, by = "h") %>% as_tibble() %>% 
+  melt(id = "h") %>% as_tibble() %>% factorToInt("h") %>% 
+  set_colnames(c("Height", "Timepoint", "Number of clusters"))
+shinyjs::useShinyjs(rmd = TRUE)
+```
+
+
+
+All clusters
+=======================================================================
+
+Row {data-height=100}
+-----------------------------------------------------------------------
+
+### ALL TP1 clusters
+```{r}
+numericInput("min_size_tp1", "Minimum cluster size to include in the TP1 histogram:", 
+             value = 10, min = 1, max = max(clusters$tp1_cl_size))
+```
+
+### ALL TP2 clusters
+```{r}
+numericInput("min_size_tp2", "Minimum cluster size to include in the TP1 histogram:", 
+             value = 10, min = 1, max = max(clusters$tp2_cl_size))
+```
+
+### Violin plot of cluster sizes
+```{r}
+numericInput("violin_ms", "Minimum cluster size to include in the violin plot:", 
+             value = 10, min = 1, max = max(clusters$tp2_cl_size))
+```
+
+### Data snapshot (of `r nrow(clusters)` rows)
+```{r}
+# DT::renderDataTable({clusters[1:10,]})
+```
+
+### Chart D
+
+Row {data-height=750 .tabset}
+-----------------------------------------------------------------------
+  
+### ALL TP1 clusters
+```{r}
+renderPlotly({
+  min_size <- input$min_size_tp1
+  all_tp1_sizes <- clusters$tp1_cl_size %>% 
+    plotCS("tp1_cl_size") %>% 
+    filter(tp1_cl_size >= min_size)
+
+  {ggplot(all_tp1_sizes, aes(x = tp1_cl_size, y = count)) + geom_bar(stat = "identity", fill = "forestgreen") + 
+      xlab("Cluster size") + ylab("Number of clusters") + 
+      ggtitle(paste0("Histogram of cluster sizes for TP1, for clusters with size >= ", min_size))} %>% ggplotly()
+})
+```
+
+### ALL TP2 clusters
+```{r}
+renderPlotly({
+  min_size <- input$min_size_tp2
+  all_tp2_sizes <- clusters$tp2_cl_size %>% 
+    plotCS("tp2_cl_size") %>% 
+    filter(tp2_cl_size >= min_size)
+
+  {ggplot(all_tp2_sizes, aes(x = tp2_cl_size, y = count)) + geom_bar(stat = "identity", fill = "darkmagenta") + 
+      xlab("Cluster size") + ylab("Number of clusters") + 
+      ggtitle(paste0("Histogram of cluster sizes for TP2, for clusters with size >= ", min_size))} %>% ggplotly()  
+})
+```
+
+### Violin plot of cluster sizes
+```{r}
+renderPlotly({
+  min_size <- input$violin_ms
+  a <- clusters[,c("tp1_cl_size", "tp2_cl_size")] %>% 
+    set_colnames(c("TP1", "TP2")) %>% melt() %>% 
+    as_tibble() %>% set_colnames(c("tp", "cs")) %>% 
+    filter(cs >= min_size)
+
+  {ggplot(a, aes(tp, cs, fill = tp, color = tp)) + 
+      geom_violin() + xlab("Timepoint") + ylab("Cluster Size") + 
+      scale_color_manual(values = c("forestgreen", "darkmagenta")) + 
+      scale_fill_manual(values = c("forestgreen", "darkmagenta")) + 
+      ggtitle(paste0("Density of flagged clusters with indicated cluster sizes, at TP1 and TP2"), 
+              subtitle = paste0("(", nrow(a), " clusters represented"))} %>% 
+    ggplotly() %>% 
+    layout(title = list(text = paste0("Density of all clusters with indicated cluster sizes, at TP1 ", 
+                                      "and TP2<br><sup>(", nrow(a), " clusters represented)</sup>")))
+})
+```
+
+### Number of clusters by height
+```{r}
+renderPlotly({
+  {ggplot(a3, aes(x = Height, y = `Number of clusters`, fill = Timepoint)) + 
+      scale_fill_manual(values = c("forestgreen", "darkmagenta")) + 
+      ggtitle("") + 
+      geom_bar(stat = "identity", position = "dodge")} %>% 
+    ggplotly()
+})
+#   - a barplot of the number of clusters at each height (shaded by average cluster size)
+```
+
+
+
+
+Flagged clusters 
+=======================================================================
+
+Row {data-height=100}
+-----------------------------------------------------------------------
+
+### c1
+```{r}
+numericInput("fc_ms_tp1", "Minimum cluster size to include in the TP1 histogram:", 
+             value = 10, min = 1, max = max(flagged$tp1_cl_size))
+```
+
+### c2
+```{r}
+numericInput("fc_ms_tp2", "Minimum cluster size to include in the TP1 histogram:", 
+             value = 10, min = 1, max = max(flagged$tp2_cl_size))
+```
+
+### c3
+```{r}
+numericInput("fc_violin_ms", "Minimum cluster size to include in the violin plot:", 
+             value = 10, min = 1, max = max(flagged$tp2_cl_size))
+```
+
+### Chart D
+### Chart E
+
+Row {data-height=750 .tabset}
+-----------------------------------------------------------------------
+  
+### ALL TP1 cluster sizes 
+```{r}
+renderPlotly({
+  min_size <- 10#input$fc_ms_tp1
+  df_tp1 <- flagged$tp1_cl_size %>% 
+    plotCS("tp1_cl_size") %>% 
+    filter(tp1_cl_size >= min_size)# %>% filter(count > 1)
+
+  {ggplot(df_tp1, aes(x = tp1_cl_size, y = count)) + geom_bar(stat = "identity", fill = "forestgreen") + 
+      xlab("Cluster size") + ylab("Number of clusters") + 
+      ggtitle(paste0("Histogram of cluster sizes for TP1, for flagged clusters with size >= ", min_size))} %>% 
+    ggplotly()
+})
+```
+
+### ALL TP2 cluster sizes 
+```{r}
+renderPlotly({
+  min_size <- 10#input$fc_ms_tp2
+  df_tp2 <- flagged$tp2_cl_size %>% 
+    plotCS("tp2_cl_size") %>% 
+    filter(tp2_cl_size >= min_size)# %>% filter(count > 1)
+
+{ggplot(df_tp2, aes(x = tp2_cl_size, y = count)) + geom_bar(stat = "identity", fill = "darkmagenta") + 
+    xlab("Cluster size") + ylab("Number of clusters") + 
+    ggtitle(paste0("Histogram of cluster sizes for TP1, for flagged clusters with size >= ", min_size))} %>% 
+    ggplotly()
+})
+```
+
+### Violin plot of cluster sizes
+```{r}
+renderPlotly({
+  min_size <- 10#input$fc_violin_ms
+  a <- flagged[,c("tp1_cl_size", "tp2_cl_size")] %>% 
+    set_colnames(c("TP1", "TP2")) %>% melt() %>% 
+    as_tibble() %>% set_colnames(c("tp", "cs")) %>% 
+    filter(cs >= min_size)
+
+  {ggplot(a, aes(tp, cs, fill = tp, color = tp)) + 
+      geom_violin() + xlab("Timepoint") + ylab("Cluster Size") + 
+      scale_color_manual(values = c("forestgreen", "darkmagenta")) + 
+      scale_fill_manual(values = c("forestgreen", "darkmagenta")) + 
+      ggtitle(paste0("Density of flagged clusters with indicated cluster sizes, at TP1 and TP2"), 
+              subtitle = paste0("(", nrow(a), " clusters represented"))} %>% 
+    ggplotly() %>% 
+    layout(title = list(text = paste0("Density of flagged clusters with indicated cluster sizes, at TP1 ", 
+                                      "and TP2<br><sup>(", nrow(a), " clusters represented)</sup>")))
+})
+```
+
+
+Page 3 {data-orientation=columns}
+=======================================================================
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Tracking the flagged clusters (from TP1 to TP2)
+
+```{r}
+actual_sizes <- time1_raw %>% melt(id = "isolate") %>% 
+  as_tibble() %>% dplyr::select(-isolate) %>% 
+  group_by_all() %>% summarise(n = n(), .groups = "drop") %>% 
+  set_colnames(c("h", "cl", "size")) %>% 
+  factorToInt("h") %>% 
+  createID("h", "cl")
+
+ids <- flagged %>% filter(num_novels != 0) %>% pull(tp1_id)
+
+df <- clusters %>% filter(tp1_id %in% ids) %>% arrange(tp1_h, tp1_cl)
+
+selectInput("flagged_clusters", "Select a TP1 originating cluster to track through TP2:", choices = df$tp1_id %>% unique())
+```
+
+```{r}
+renderPlotly({
+  idx <- input$flagged_clusters
+  df1 <- df %>% filter(tp1_id == idx)
+  
+  dfa <- df1 %>% dplyr::select(tp1_h, tp1_cl_size) %>% 
+    add_column(tp = "Number of originals at TP1", .before = 1) %>% 
+    set_colnames(c("tp", "h", "size"))
+  
+  dfb <- df1 %>% dplyr::select(tp2_h, tp2_cl_size) %>% 
+    add_column(tp = "TP2", .before = 1) %>% 
+    set_colnames(c("tp", "h", "size"))
+  
+  df2 <- bind_rows(dfa, dfb) %>% unique() %>% 
+    add_row(tp = "Actual TP1 size", h = unique(dfa$h), size = actual_sizes$size[actual_sizes$id == idx])
+  
+  
+  {ggplot(df2, aes(x = h, y = size, color = tp)) + 
+    scale_color_manual(values = c("darkblue", "forestgreen", "darkmagenta")) + 
+    geom_point()} %>% 
+    ggplotly()
+})
+```
+
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r}
+
+```
+
+### Chart C
+
+```{r}
+
+```
+
+
+```{r}
+# flagged %>% arrange(tp1_h, tp1_cl)
+```
+
+
+```{r plot3}
+# Flagged cluster sizes, Close-up of flagged cluster sizes
+#   - the cluster size differences between TP1 and TP2 (as a histogram)
+#     - for all clusters
+#     - for the flagged ones only
+```
+
+
+```{r plot4}
+#   - a barplot of the number of clusters at each height (shaded by average cluster size)
+```
+
+
+```{r plot5}
+#     - if you click on a bar, you get a scatter plot of the clusters at that height, at TP1, blue
+#       - y axis is size of cluster, x is ?
+#     - if you click on a bar, you get a scatter plot of the clusters at that height, at TP2, red
+#       - y axis is size of cluster, x is ?
+```
+
+
+```{r plot6}
+#     - if you click on a cluster at TP1, you get a bubble plot of that cluster overlayed by the clusters it is the 
+#     foundation for at TP2, so we can see the growth
+```
+
+
+Page 4 {data-orientation=columns}
+=======================================================================
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Chart A1
+
+```{r}
+
+```
+
+### Chart A2
+
+```{r}
+
+```
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Chart B
+
+```{r}
+
+```
+
+### Chart C
+
+```{r}
+
+```
+
+```{r}
+# DT::datatable(metrics, options = list(columnDefs = list(list(className = "dt-center", targets = "_all")), 
+#                                      dom = "ti", pageLength = nrow(b2), scrollY = "500px"), 
+#                   rownames = FALSE, filter = "none", container = sketch, class = 'cell-border stripe', 
+#                   selection = list(target = "cell", mode = "single")) %>% 
+#       formatStyle(3:5, border = '1px solid #ddd')
+# gs_link <- "https://docs.google.com/spreadsheets/d/1k7XfQfoVaXCvgdhn57SCu0SI6p2M665hpiogSI-Zw5U/edit?usp=sharing"
+# gs_id <- "1k7XfQfoVaXCvgdhn57SCu0SI6p2M665hpiogSI-Zw5U"
+# # first time this is run, we need to authenticate the google account associated with the sheet
+# # need to grant Tidyverse API Packages permission to access the data
+# drive_get("cgm_data") %>% read_sheet()
+
+# flagged_w_iso <- metrics %>% filter(flag != "sb")
+# cgm_data <- sheet_write(flagged_w_iso)
+```
+
+
+```{r}
+
+# DT::datatable(flagged_w_iso, options = list(columnDefs = list(list(className = "dt-center", targets = "_all")),
+#                                      dom = "ti", pageLength = nrow(flagged_w_iso), scrollY = "500px"),
+#                   rownames = FALSE, class = 'cell-border stripe')
+```

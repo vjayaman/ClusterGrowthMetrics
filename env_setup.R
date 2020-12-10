@@ -8,7 +8,9 @@ pb <- txtProgressBar(min = 0, max = 4, initial = 1, style = 3)
 
 message(paste0("For reporting an issue, see https://github.com/vjayaman/ClusterGrowthMetrics/issues.\n"))
 
-required_packages <- c("tibble", "magrittr", "dplyr", "reshape2", "scales")
+required_packages <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", 
+                       "tcltk", "ggplot2", "plotly", "flexdashboard", "RColorBrewer")
+
 not_installed <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
 setTxtProgressBar(pb, 2)
 

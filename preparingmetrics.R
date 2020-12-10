@@ -14,8 +14,8 @@ stopwatch[1] <- Sys.time()
 
 # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
 # the raw datasets, no filtering or other changes made
-time1_raw <- "data/timepoint1_data.csv" %>% readData(., X)
-time2_raw <- "data/timepoint2_data.csv" %>% readData(., Y)
+time1_raw <- "data/timepoint1_data.csv" %>% readData(., 1)
+time2_raw <- "data/timepoint2_data.csv" %>% readData(., 2)
 
 # USER: make sure the first column is the isolate labeling
 # then replace with "isolate" for easier manipulation later on
