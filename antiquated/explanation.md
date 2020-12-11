@@ -1,0 +1,1 @@
+These are files that were relevant at earlier parts of the project. They may be useful again if we re-explore those areas (for example, if we take another look at studying synthetic data). For the purpose this project now serves, they are not necessary/relevant.
