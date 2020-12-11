@@ -8,8 +8,10 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-source("../functions/base_functions.R")
-source("../functions/processing_functions.R")
+# WORKING DIRECTORY: ClusterGrowthMetrics
+
+source("functions/base_functions.R")
+source("functions/processing_functions.R")
 x <- c("ggplot2", "plotly", "flexdashboard", "RColorBrewer", "shinyjs")
 lapply(x, require, character.only = TRUE)
 
@@ -17,10 +19,10 @@ lapply(x, require, character.only = TRUE)
 # metrics <- readData("../outputs/all_clusters_table.csv") %>% 
 #   set_colnames(c("isolate", "tp1_h", "tp1_cl", "tp2_h", "tp2_cl", "tp1_cl_size", 
 #                  "tp2_cl_size", "flag", "num_novels", "prop_inc", "adap_thresh", "fold_change"))
-metrics <- readRDS("../data/metrics.Rds")
+metrics <- readRDS("data/metrics.Rds")
 
 # clusters <- metrics %>% select(-isolate) %>% unique()
-clusters <- readRDS("../data/clusters.Rds") %>% 
+clusters <- readRDS("data/clusters.Rds") %>% 
   createID("tp1_h", "tp1_cl") %>% rename(tp1_id = id) %>% 
   createID("tp2_h", "tp2_cl") %>% rename(tp2_id = id)
 
@@ -29,8 +31,8 @@ flagged$num_novels[is.na(flagged$num_novels)] <- 0
 
 # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
 # the raw datasets, no filtering or other changes made
-time1_raw <- "../data/timepoint1_data.csv" %>% readData(.,1)
-time2_raw <- "../data/timepoint2_data.csv" %>% readData(.,2)
+time1_raw <- "data/timepoint1_data.csv" %>% readData(.,1)
+time2_raw <- "data/timepoint2_data.csv" %>% readData(.,2)
 
 a1 <- time1_raw %>% dplyr::select(-isolate) %>% 
     melt() %>% as_tibble() %>% unique() %>% 
