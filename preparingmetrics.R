@@ -1,5 +1,5 @@
-source("base_functions.R")
-source("processing_functions.R")
+source("functions/base_functions.R")
+source("functions/processing_functions.R")
 
 running_in_rstudio <- FALSE
 
@@ -196,9 +196,9 @@ transit$fold_change <- (transit$prop_inc / transit$predicted) %>% round(., digit
 transit <- transit %>% arrange(., -fold_change)
 if (running_in_rstudio) {externalProgressBar(pb, 14, "Adding a column to show the number of novels in each TP2 cluster.")}
 
-not_na <- which(!is.na(transit$prop_inc))
-transit$prop_inc[not_na] <- transit$prop_inc[not_na] %>% scales::percent() 
-transit$predicted[not_na] <- transit$predicted[not_na] %>% scales::percent()
+# not_na <- which(!is.na(transit$prop_inc))
+# transit$prop_inc[not_na] <- transit$prop_inc[not_na] %>% scales::percent() 
+# transit$predicted[not_na] <- transit$predicted[not_na] %>% scales::percent()
 
 # We still need a column with the number of novels in each TP2 cluster (note that this may not correspond 
 # exactly with the change in a cluster's size from TP1 to TP2)
@@ -217,6 +217,13 @@ results <- transit %>% left_join(nn, by = c("tp2_h", "tp2_cl", "id")) %>%
 if (running_in_rstudio) {externalProgressBar(pb, 16, "Saving data...")}
 
 saveData(dtype = 4, m = results)
+
+flagged_wi <- filter(metrics, !is.na(flagged))
+saveData(dtype = 6, flagged = flagged_wi)
+
+flagged_jc <- filter(metrics, !is.na(flagged)) %>% select(-isolate) %>% unique()
+saveData(dtype = 7, flagged = flagged_jc)
+
 stopwatch[2] <- Sys.time()
 
 timeTaken(pt = "preparing metrics", stopwatch)

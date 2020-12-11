@@ -1,4 +1,4 @@
-saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL, transit) {
+saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL, transit, flagged) {
   if (dtype == 1) {
     paste0("outputs/height_data/h_", h, ".Rds") %>% saveRDS(sh, .)
   }else if (dtype == 2) {
@@ -16,6 +16,10 @@ saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL, transi
     saveRDS(transit[['po']], paste0("outputs/transit/postcc//h_", h, ".Rds"))
     saveRDS(transit[['pr']], paste0("outputs/transit/precc//h_", h, ".Rds"))
     saveRDS(transit[['m']], paste0("outputs/transit/metrics/h_", h, ".Rds"))
+  }else if (dtype == 6) {
+    write.csv(flagged, "outputs/flagged_cases_w_isolates.csv", row.names = FALSE)
+  }else if (dtype == 7) {
+    write.csv(flagged, "outputs/flagged_cases_just_clusters.csv", row.names = FALSE)
   }
 }
 
