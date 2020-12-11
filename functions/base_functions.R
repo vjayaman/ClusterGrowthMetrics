@@ -1,4 +1,4 @@
-x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", "tcltk")
+x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress")
 lapply(x, require, character.only = TRUE)
 
 # DATA HANDLING -----------------------------------------------------------------------------------------------------

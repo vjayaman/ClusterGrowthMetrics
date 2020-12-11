@@ -133,6 +133,7 @@ for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   setTxtProgressBar(hpb, j)
 }
 saveData(dtype = 2, sw = stopwatch)
+message("\nMerging height data into a single results file - note, just tracked cluster info.\n")
 saveData(dtype = 3)
 
 timeTaken(pt = "data collection", stopwatch)
