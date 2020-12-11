@@ -1,10 +1,37 @@
+#! /usr/bin/env Rscript
+input_args = commandArgs(trailingOnly = TRUE)
+
+# SUMMARY: this is the script for generating the cluster metrics, given input files for two time points
+# 	- each time point dataset should be a file that can be read with the following statement 
+# 	      read.csv(file = tp1_filename, stringsAsFactors = FALSE, numerals = "no.loss")
+# 	  and should be composed of a single column with name "isolate" followed by a series of columns with 
+# 	  cluster assignments at each of the thresholds
+# 	- it may take some time if either time point dataset is very very large (>> 6000 genomes)
+
+# sending errors and warnings to the log file
+msg <- file("logfile_metrics.txt", open="wt")
+sink(msg, type="message")
+
+stopwatch <- rep(0,2)
+stopwatch[1] <- Sys.time()
+
+message("\n------------------ Cluster metric generation ------------------\n")
+
 source("base_functions.R")
 source("processing_functions.R")
 
-# the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||33333
-# the raw datasets, no filtering or other changes made
-time1_raw <- "data/timepoint1_data.csv" %>% readData(., 1)
-time2_raw <- "data/timepoint2_data.csv" %>% readData(., 2)
+## FOR USER: replace the filename variables with quoted file paths if you don't want to input them each time
+message("Loading datafiles")
+time1_raw <- input_args[1] %>% readData(., 1)
+time2_raw <- input_args[2] %>% readData(., 2)
+
+cat(paste0("\nIf the progress bar does not reach 100% after a few minutes, ", 
+           "with a success message following, please see the log file.\n"))
+
+# # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||33333
+# # the raw datasets, no filtering or other changes made
+# time1_raw <- "data/timepoint1_data.csv" %>% readData(., 1)
+# time2_raw <- "data/timepoint2_data.csv" %>% readData(., 2)
 
 # USER: make sure the first column is the isolate labeling
 # then replace with "isolate" for easier manipulation later on

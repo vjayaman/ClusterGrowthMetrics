@@ -1,4 +1,7 @@
 saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL, transit, flagged) {
+  if (!dir.exists("outputs")) {
+    dir.create("outputs", recursive = TRUE)
+  }
   if (dtype == 1) {
     paste0("outputs/height_data/h_", h, ".Rds") %>% saveRDS(sh, .)
   }else if (dtype == 2) {
