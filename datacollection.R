@@ -20,19 +20,25 @@ message("\n------------------ Cluster metric generation ------------------\n")
 source("functions/base_functions.R")
 source("functions/processing_functions.R")
 
+cat(paste0("\nIf the progress bar does not reach 100% after a few minutes, ", 
+           "with a success message following, please see the log file.\n"))
+
+pb <- txtProgressBar(min = 0, max = 75, initial = 5, style = 3)
+
 ## FOR USER: replace the filename variables with quoted file paths if you don't want to input them each time
 message("Loading datafiles")
 time1_raw <- input_args[1] %>% readData(., 1)
 time2_raw <- input_args[2] %>% readData(., 2)
 
-cat(paste0("\nIf the progress bar does not reach 100% after a few minutes, ", 
-           "with a success message following, please see the log file.\n"))
+message("Successfully read in datafiles")
+setTxtProgressBar(pb, 10)
 
 # # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||33333
 # # the raw datasets, no filtering or other changes made
 # time1_raw <- "data/timepoint1_data.csv" %>% readData(., 1)
 # time2_raw <- "data/timepoint2_data.csv" %>% readData(., 2)
 
+message("Preparing data for processing")
 # USER: make sure the first column is the isolate labeling
 # then replace with "isolate" for easier manipulation later on
 colnames(time1_raw)[1] <- colnames(time2_raw)[1] <- "isolate"
@@ -50,10 +56,12 @@ meltedTP1 <- time1_raw %>%
   meltData(., "isolate") %>% 
   set_colnames(c("isolate", "tp1_h", "tp1_cl")) %>% 
   factorToInt(., "tp1_h")
+setTxtProgressBar(pb, 15)
 
 ids <- list()
 
 ### BASE CASE:
+message("Collecting height data for base case, height 0.")
 # this should be '0', the first column is the isolates
 base_case_h <- colnames(time2_raw)[2]
 # finding the composition (in terms of coded isolates) of each of the clusters
@@ -66,11 +74,19 @@ metrics <- addToMetrics(base_case_h, ids)
 
 paste0("outputs/height_data/h_", base_case_h, ".Rds") %>% saveRDS(single_height, .)
 saveData(dtype = 1, sh = single_height, h = "0")
+message("Saved data for base case, height 0.")
+setTxtProgressBar(pb, 20)
 
 stopwatch <- rep(0,2) %>% set_names(c("start_time", "end_time"))
 stopwatch[1] <- Sys.time()
 
+pi <- 20
+k <- length(colnames(time2_raw)[-1][-1])/50
+
 for (j in 1:length(colnames(time2_raw)[-1][-1])) {
+  pi <- pi + k
+  setTxtProgressBar(pb, pi)
+  
   height2 <- colnames(time2_raw)[-1][-1][j]
   message(paste0("Threshold h_", height2, " - ", j, " / ", length(colnames(time2_raw)[-1][-1])))
   
@@ -112,3 +128,5 @@ saveData(dtype = 2, sw = stopwatch)
 saveData(dtype = 3)
 
 timeTaken(pt = "data collection", stopwatch)
+message("Closing all connections")
+closeAllConnections()
