@@ -1,6 +1,10 @@
 source("functions/base_functions.R")
 source("functions/processing_functions.R")
 
+# the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
+# the raw datasets, no filtering or other changes made
+time1_raw <- "data/timepoint1_data.csv" %>% readData(., 1)
+time2_raw <- "data/timepoint2_data.csv" %>% readData(., 2)
 running_in_rstudio <- FALSE
 
 if (running_in_rstudio) {
@@ -11,11 +15,6 @@ if (running_in_rstudio) {
 testing <- TRUE
 stopwatch <- rep(0,2) %>% set_names(c("start_time", "end_time"))
 stopwatch[1] <- Sys.time()
-
-# the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
-# the raw datasets, no filtering or other changes made
-time1_raw <- "data/timepoint1_data.csv" %>% readData(., 1)
-time2_raw <- "data/timepoint2_data.csv" %>% readData(., 2)
 
 # USER: make sure the first column is the isolate labeling
 # then replace with "isolate" for easier manipulation later on

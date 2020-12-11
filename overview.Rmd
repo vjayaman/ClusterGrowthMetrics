@@ -15,7 +15,6 @@ source("functions/processing_functions.R")
 x <- c("ggplot2", "plotly", "flexdashboard", "RColorBrewer", "shinyjs")
 lapply(x, require, character.only = TRUE)
 
-# library(googlesheets4); library(googledrive)
 # metrics <- readData("../outputs/all_clusters_table.csv") %>% 
 #   set_colnames(c("isolate", "tp1_h", "tp1_cl", "tp2_h", "tp2_cl", "tp1_cl_size", 
 #                  "tp2_cl_size", "flag", "num_novels", "prop_inc", "adap_thresh", "fold_change"))
@@ -45,15 +44,14 @@ a2 <- time2_raw %>% dplyr::select(-isolate) %>%
   group_by(variable) %>% 
   summarise(n = n(), .groups = "drop") %>% 
   set_colnames(c("h", "TP2"))
-# shinyjs::useShinyjs(rmd = TRUE)
 ```
 
-Page 3 
+Data overview
 =======================================================================
 Row {data-height=500}
 -----------------------------------------------------------------------
 
-### Chart A
+### Flagged clusters (all "newly formed" TP2 clusters and the originating TP1 cluster (flags))
 ```{r}
 DT::dataTableOutput("flaggedDT")
 output$flaggedDT <- DT::renderDataTable({
@@ -78,7 +76,7 @@ output$flaggedDT <- DT::renderDataTable({
 Row {data-height=500 .tabset}
 -----------------------------------------------------------------------
 
-### Chart B
+### Select a row in the table above to see *all* TP2 cluster details
 
 ```{r}
 DT::dataTableOutput("selectedClusters")
@@ -97,18 +95,48 @@ output$selectedClusters <- DT::renderDataTable({
 
 ### Chart C
 
-
 ```{r}
-# gs_link <- "https://docs.google.com/spreadsheets/d/1k7XfQfoVaXCvgdhn57SCu0SI6p2M665hpiogSI-Zw5U/edit?usp=sharing"
-# gs_id <- "1k7XfQfoVaXCvgdhn57SCu0SI6p2M665hpiogSI-Zw5U"
-# # first time this is run, we need to authenticate the google account associated with the sheet
-# # need to grant Tidyverse API Packages permission to access the data
-# drive_get("cgm_data") %>% read_sheet()
+renderPlotly({
+  req(input$flaggedDT_rows_selected)
+  
+  selected <- flagged[input$flaggedDT_rows_selected,]
+  df <- metrics %>% filter(tp2_h == selected$tp2_h & tp2_cl == selected$tp2_cl)
 
-# flagged_w_iso <- metrics %>% filter(flag != "sb")
-# flagged_w_iso <- metrics %>% filter(flag != "sb")
-# cgm_data <- sheet_write(flagged_w_iso)
+  b1 <- metrics %>% filter(isolate %in% df$isolate) %>% 
+    select(-isolate) %>% unique() %>% 
+    rownames_to_column("id") %>% 
+    arrange(tp2_h, tp2_cl) %>% 
+    mutate(across(id, as.integer))
+
+  b4 <- b1 %>% select(id, tp1_cl_size, tp2_cl_size) %>% 
+    set_colnames(c("id", "TP1", "TP2")) %>% 
+    melt(id = "id") %>% as_tibble() %>% 
+    set_colnames(c("Rows (from previous tab)", "TP", "Cluster size")) %>% 
+    mutate(across(TP, as.character))
+  
+  flags <- b1 %>% filter(flag != "sb") %>% pull(id)
+  
+  
+  tmp1 <- b1 %>% select(id, tp1_h, tp1_cl, tp1_cl_size) %>% add_column("TP" = "TP1", .after = 1) %>% 
+    set_colnames(c("Rows (from previous tab)", "TP", "height", "cluster", "Cluster size"))
+  tmp2 <- b1 %>% select(id, tp2_h, tp2_cl, tp2_cl_size) %>% add_column("TP" = "TP2", .after = 1) %>% 
+    set_colnames(c("Rows (from previous tab)", "TP", "height", "cluster", "Cluster size"))
+  
+  b5 <- b4 %>% left_join(., bind_rows(tmp1, tmp2), by = c("Rows (from previous tab)", "TP", "Cluster size"))
+  
+  text1 <- paste0("Cluster type: ", b5$TP, "\nHeight: ", b5$height, 
+                  "\nCluster: ", b5$cluster, "\nCluster size: ", b5$`Cluster size`, 
+                  "\nRow number: ", b5$`Rows (from previous tab)`)
+  
+  b5$TP[b5$`Rows (from previous tab)` %in% flags] <- "Flagged"
+  {ggplot(b5, aes(x = `Rows (from previous tab)`, y = `Cluster size`, color = TP, text = text1)) + 
+      geom_point() + 
+      ggtitle("Sizes of the clusters from the previous tab (ordered by TP2 height then cluster)") + 
+      scale_color_manual(values = c("black", "forestgreen", "darkmagenta"))} %>% 
+    ggplotly(tooltip = "text1")
+})
 ```
+
 
 All clusters
 =======================================================================
@@ -214,26 +242,26 @@ Flagged clusters
 Row {data-height=100}
 -----------------------------------------------------------------------
 
-### c1
+### ALL TP1 cluster sizes 
 ```{r}
 numericInput("fc_ms_tp1", "Minimum cluster size to include in the TP1 histogram:", 
              value = 10, min = 1, max = max(flagged$tp1_cl_size))
 ```
 
-### c2
+### ALL TP2 cluster sizes 
 ```{r}
 numericInput("fc_ms_tp2", "Minimum cluster size to include in the TP1 histogram:", 
              value = 10, min = 1, max = max(flagged$tp2_cl_size))
 ```
 
-### c3
+### Violin plot of cluster sizes
 ```{r}
 numericInput("fc_violin_ms", "Minimum cluster size to include in the violin plot:", 
              value = 10, min = 1, max = max(flagged$tp2_cl_size))
 ```
 
-### Chart D
-### Chart E
+### 
+### 
 
 Row {data-height=750 .tabset}
 -----------------------------------------------------------------------
@@ -344,13 +372,13 @@ renderPlotly({
 Column {data-width=500}
 -----------------------------------------------------------------------
 
-### Chart B
+### 
 
 ```{r}
 
 ```
 
-### Chart C
+### 
 
 ```{r}
 
@@ -387,32 +415,3 @@ Column {data-width=500}
 #     - if you click on a cluster at TP1, you get a bubble plot of that cluster overlayed by the clusters it is the 
 #     foundation for at TP2, so we can see the growth
 ```
-
-
-Page 5 {data-orientation=columns}
-=======================================================================
-Column {data-width=900}
------------------------------------------------------------------------
-
-```{r}
-
-```
-
-### Data snapshot (of `r nrow(clusters)` rows)
-
-
-Column {data-width=100}
------------------------------------------------------------------------
-
-### Chart B
-
-```{r}
-
-```
-
-### Chart C
-
-```{r}
-
-```
-
