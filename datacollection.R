@@ -9,7 +9,7 @@ input_args = commandArgs(trailingOnly = TRUE)
 # 	- it may take some time if either time point dataset is very very large (>> 6000 genomes)
 
 # sending errors and warnings to the log file
-msg <- file("logfile_metrics.txt", open="wt")
+msg <- file("logfile_datacollection.txt", open="wt")
 sink(msg, type="message")
 
 stopwatch <- rep(0,2)
