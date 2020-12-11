@@ -1,6 +1,7 @@
 saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL, transit, flagged) {
   if (!dir.exists("outputs")) {
-    dir.create("outputs", recursive = TRUE)
+    dir.create("outputs/height_data", recursive = TRUE)
+    # dir.create("outputs/transit", recursive = TRUE)
   }
   if (dtype == 1) {
     paste0("outputs/height_data/h_", h, ".Rds") %>% saveRDS(sh, .)
@@ -14,11 +15,11 @@ saveData <- function(dtype = 1, h = NULL, sh = NULL, sw = NULL, m = NULL, transi
     write.csv(m, "outputs/all_clusters_table.csv", row.names = FALSE)
     write.csv(m[1:10,], "outputs/first_ten_rows.csv", row.names = FALSE)
     message("\nSaved metrics to outputs folder.")
-  }else if (dtype == 5) {
-    saveRDS(transit[['i']], paste0("outputs/transit/ids/h_", h, ".Rds"))
-    saveRDS(transit[['po']], paste0("outputs/transit/postcc//h_", h, ".Rds"))
-    saveRDS(transit[['pr']], paste0("outputs/transit/precc//h_", h, ".Rds"))
-    saveRDS(transit[['m']], paste0("outputs/transit/metrics/h_", h, ".Rds"))
+    # }else if (dtype == 5) {
+    #   saveRDS(transit[['i']], paste0("outputs/transit/ids/h_", h, ".Rds"))
+    #   saveRDS(transit[['po']], paste0("outputs/transit/postcc//h_", h, ".Rds"))
+    #   saveRDS(transit[['pr']], paste0("outputs/transit/precc//h_", h, ".Rds"))
+    #   saveRDS(transit[['m']], paste0("outputs/transit/metrics/h_", h, ".Rds"))
   }else if (dtype == 6) {
     write.csv(flagged, "outputs/flagged_cases_w_isolates.csv", row.names = FALSE)
   }else if (dtype == 7) {
@@ -51,11 +52,11 @@ resultsProcess <- function(time2_data, all_clusters, df1, ids, jo) {
   # note that the ac (all_clusters) list just indicates which clusters changed in composition
   #   - it is possible for one or more to contain only novels
   #     - these will be ignored for now, and dealt with in a separate step
-  pb <- progress_bar$new(total = length(all_clusters))
+  # pb <- progress_bar$new(total = length(all_clusters))
   ids_copy <- ids
   a <- list()
   for (i in 1:length(all_clusters)) {
-    pb$tick()
+    # pb$tick()
     # print(paste0("h_", h, "-", i, "/", length(all_clusters)))
     kc <- jo %>% dplyr::filter(tp2_cl == all_clusters[i])
     

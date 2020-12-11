@@ -20,10 +20,12 @@ message("\n------------------ Cluster metric generation ------------------\n")
 source("functions/base_functions.R")
 source("functions/processing_functions.R")
 
-cat(paste0("\nIf the progress bar does not reach 100% after a few minutes, ", 
-           "with a success message following, please see the log file.\n"))
+cat(paste0("\nIf at any point the process cuts off abruptly with no ", 
+           "success message, please see the log file.\n"))
 
-pb <- txtProgressBar(min = 0, max = 75, initial = 5, style = 3)
+cat(paste0("\nPreparing data for processing (see log file for details)\n"))
+
+pb <- txtProgressBar(min = 0, max = 10, initial = 1, style = 3)
 
 ## FOR USER: replace the filename variables with quoted file paths if you don't want to input them each time
 message("Loading datafiles")
@@ -31,7 +33,7 @@ time1_raw <- input_args[1] %>% readData(., 1)
 time2_raw <- input_args[2] %>% readData(., 2)
 
 message("Successfully read in datafiles")
-setTxtProgressBar(pb, 10)
+setTxtProgressBar(pb, 2)
 
 # # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||33333
 # # the raw datasets, no filtering or other changes made
@@ -56,7 +58,7 @@ meltedTP1 <- time1_raw %>%
   meltData(., "isolate") %>% 
   set_colnames(c("isolate", "tp1_h", "tp1_cl")) %>% 
   factorToInt(., "tp1_h")
-setTxtProgressBar(pb, 15)
+setTxtProgressBar(pb, 5)
 
 ids <- list()
 
@@ -67,32 +69,36 @@ base_case_h <- colnames(time2_raw)[2]
 # finding the composition (in terms of coded isolates) of each of the clusters
 # note that this includes both novel and original isolates
 precc <- clustComp(time2_coded, base_case_h, "h_before")
+setTxtProgressBar(pb, 6)
 
 single_height <- oneHeight(time2_raw, time2_coded, base_case_h, novels, meltedTP1, ids, precc$h_before, precc)
+setTxtProgressBar(pb, 8)
+
 ids <- c(unlist(ids), single_height$flagged %>% unique()) %>% unique()
 metrics <- addToMetrics(base_case_h, ids)
+setTxtProgressBar(pb, 9)
 
-paste0("outputs/height_data/h_", base_case_h, ".Rds") %>% saveRDS(single_height, .)
+# paste0("outputs/height_data/h_", base_case_h, ".Rds") %>% saveRDS(single_height, .)
 saveData(dtype = 1, sh = single_height, h = "0")
-message("Saved data for base case, height 0.")
-setTxtProgressBar(pb, 20)
+setTxtProgressBar(pb, 10)
+close(pb)
 
 stopwatch <- rep(0,2) %>% set_names(c("start_time", "end_time"))
 stopwatch[1] <- Sys.time()
 
-pi <- 20
-k <- length(colnames(time2_raw)[-1][-1])/50
+cat(paste0("\nCollecting data for all ", length(colnames(time2_raw)[-1][-1]), 
+           " heights. This may take some time. (Note that for a more detailed look at progress, ", 
+           "you can keep an eye on the newly created outputs directory, where data will be saved ", 
+           "for each height.)\n"))
+hpb <- txtProgressBar(min = 0, max = length(colnames(time2_raw)[-1][-1]), initial = 0, style = 3)
 
 for (j in 1:length(colnames(time2_raw)[-1][-1])) {
-  pi <- pi + k
-  setTxtProgressBar(pb, pi)
-  
   height2 <- colnames(time2_raw)[-1][-1][j]
   message(paste0("Threshold h_", height2, " - ", j, " / ", length(colnames(time2_raw)[-1][-1])))
   
   postcc <- clustComp(time2_coded, height2, "h_after")
   
-  list('i'=ids, 'po'=postcc, 'pr'=precc, 'm'=metrics) %>% saveData(dtype = 5, h = height2, transit = .)
+  # list('i'=ids, 'po'=postcc, 'pr'=precc, 'm'=metrics) %>% saveData(dtype = 5, h = height2, transit = .)
   
   # these are the clusters that changed from TP1 to TP2, and their new composition
   changed_comp <- changedClusters(precc, postcc)
@@ -123,6 +129,8 @@ for (j in 1:length(colnames(time2_raw)[-1][-1])) {
   saveData(dtype = 1, sh = single_height, h = height2)
   message("\n")
   stopwatch[2] <- Sys.time()
+  
+  setTxtProgressBar(hpb, j)
 }
 saveData(dtype = 2, sw = stopwatch)
 saveData(dtype = 3)
@@ -130,3 +138,5 @@ saveData(dtype = 3)
 timeTaken(pt = "data collection", stopwatch)
 message("Closing all connections")
 closeAllConnections()
+
+cat(paste0("\nSuccessfully collected data for all heights. (Next step: run preparingmetrics.R)"))
