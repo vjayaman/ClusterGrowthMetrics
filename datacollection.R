@@ -17,8 +17,8 @@ stopwatch[1] <- Sys.time()
 
 message("\n------------------ Cluster metric generation ------------------\n")
 
-source("base_functions.R")
-source("processing_functions.R")
+source("functions/base_functions.R")
+source("functions/processing_functions.R")
 
 ## FOR USER: replace the filename variables with quoted file paths if you don't want to input them each time
 message("Loading datafiles")
