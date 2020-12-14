@@ -7,16 +7,23 @@ output:
     output: html_document
 ---
 
+<style type="text/css">
+
+.chart-title {
+   font-size: 20px;
+}
+</style>
+
 ```{r setup, include=FALSE}
 # WORKING DIRECTORY: ClusterGrowthMetrics
 
 source("functions/base_functions.R")
 source("functions/processing_functions.R")
-x <- c("ggplot2", "plotly", "flexdashboard", "RColorBrewer", "shinyjs")
+x <- c("ggplot2", "plotly", "flexdashboard", "RColorBrewer", "shinyjs", "DT")
 lapply(x, require, character.only = TRUE)
 
-# metrics <- readData("../outputs/all_clusters_table.csv") %>% 
-#   set_colnames(c("isolate", "tp1_h", "tp1_cl", "tp2_h", "tp2_cl", "tp1_cl_size", 
+# metrics <- readData("outputs/all_clusters_table.csv") %>%
+#   set_colnames(c("isolate", "tp1_h", "tp1_cl", "tp2_h", "tp2_cl", "tp1_cl_size",
 #                  "tp2_cl_size", "flag", "num_novels", "prop_inc", "adap_thresh", "fold_change"))
 metrics <- readRDS("data/metrics.Rds")
 
@@ -62,14 +69,9 @@ output$flaggedDT <- DT::renderDataTable({
   DT::datatable(., rownames = FALSE, class = "cell-border stripe", 
                 options = list(pageLength = nrow(flagged), scrollY = "375px", dom = "tif", 
                                columnDefs = list(list(className = "dt-center", targets = "_all"))), 
-                selection = list(target = "row", mode = "single"))
+                selection = list(target = "row", mode = "single")) %>% 
+    formatRound(table = ., columns = 9, digits = 3)
 }, server = TRUE)
-
-# DT::datatable(metrics, options = list(columnDefs = list(list(className = "dt-center", targets = "_all")), 
-#                                      dom = "ti", pageLength = nrow(b2), scrollY = "500px"), 
-#                   rownames = FALSE, filter = "none", container = sketch, class = 'cell-border stripe', 
-#                   selection = list(target = "cell", mode = "single")) %>% 
-#       formatStyle(3:5, border = '1px solid #ddd')
 ```
 
 
@@ -86,14 +88,19 @@ output$selectedClusters <- DT::renderDataTable({
   
   selected <- flagged[input$flaggedDT_rows_selected,]
   df <- metrics %>% filter(tp2_h == selected$tp2_h & tp2_cl == selected$tp2_cl)
-  DT::datatable(df, rownames = FALSE, class = "cell-border stripe", 
+  df %>% set_colnames(c("Isolate", "TP1 height", "TP1 cluster", "TP2 height", "TP2 cluster", 
+                        "TP1 cluster size", "TP2 cluster size", "Flag (originating TP1 cluster)", 
+                        "Number of novels in TP2 cluster", "Proportional increase", 
+                        "Adaptive threshold", "Fold change")) %>% 
+  DT::datatable(., rownames = FALSE, class = "cell-border stripe", 
                 options = list(pageLength = nrow(df), scrollY = "375px", dom = "tif", 
                                columnDefs = list(list(className = "dt-center", targets = 1:(ncol(df)-1)))), 
-                selection = list(target = "row", mode = "single"))
+                selection = list(target = "row", mode = "single")) %>% 
+    formatRound(table = ., columns = 10, digits = 3)
 })
 ```
 
-### Chart C
+### Plot of selected cluster (tracked)
 
 ```{r}
 renderPlotly({
@@ -146,20 +153,22 @@ Row {data-height=100}
 
 ### ALL TP1 clusters
 ```{r}
-numericInput("min_size_tp1", "Minimum cluster size to include in the TP1 histogram:", 
-             value = 10, min = 1, max = max(clusters$tp1_cl_size))
+m1 <- max(clusters$tp1_cl_size)
+sliderInput("tp1_size_range", "Cluster sizes to include in the TP1 histogram:",  
+             value = c(10, m1), min = 1, max = m1)
 ```
 
 ### ALL TP2 clusters
 ```{r}
-numericInput("min_size_tp2", "Minimum cluster size to include in the TP1 histogram:", 
-             value = 10, min = 1, max = max(clusters$tp2_cl_size))
+m2 <- max(clusters$tp2_cl_size)
+sliderInput("tp2_size_range", "Cluster sizes to include in the TP1 histogram:", 
+             value = c(10, m2), min = 1, max = m2)
 ```
 
 ### Violin plot of cluster sizes
 ```{r}
-numericInput("violin_ms", "Minimum cluster size to include in the violin plot:", 
-             value = 10, min = 1, max = max(clusters$tp2_cl_size))
+sliderInput("violin_size_range", "Cluster sizes to include in the violin plot:", 
+             value = c(10, m2), min = 1, max = m2)
 ```
 
 ### Data snapshot (of `r nrow(clusters)` rows)
@@ -171,10 +180,12 @@ Row {data-height=750 .tabset}
 ### ALL TP1 clusters
 ```{r}
 renderPlotly({
-  min_size <- input$min_size_tp1
+  min_size <- input$tp1_size_range[1]
+  max_size <- input$tp1_size_range[2]
   all_tp1_sizes <- clusters$tp1_cl_size %>% 
     plotCS("tp1_cl_size") %>% 
-    filter(tp1_cl_size >= min_size)
+    filter(tp1_cl_size >= min_size) %>% 
+    filter(tp1_cl_size <= max_size)
 
   {ggplot(all_tp1_sizes, aes(x = tp1_cl_size, y = count)) + geom_bar(stat = "identity", fill = "forestgreen") + 
       xlab("Cluster size") + ylab("Number of clusters") + 
@@ -185,10 +196,12 @@ renderPlotly({
 ### ALL TP2 clusters
 ```{r}
 renderPlotly({
-  min_size <- input$min_size_tp2
+  min_size <- input$tp2_size_range[1]
+  max_size <- input$tp2_size_range[2]
   all_tp2_sizes <- clusters$tp2_cl_size %>% 
     plotCS("tp2_cl_size") %>% 
-    filter(tp2_cl_size >= min_size)
+    filter(tp2_cl_size >= min_size) %>% 
+    filter(tp2_cl_size <= max_size)
 
   {ggplot(all_tp2_sizes, aes(x = tp2_cl_size, y = count)) + geom_bar(stat = "identity", fill = "darkmagenta") + 
       xlab("Cluster size") + ylab("Number of clusters") + 
@@ -199,11 +212,13 @@ renderPlotly({
 ### Violin plot of cluster sizes
 ```{r}
 renderPlotly({
-  min_size <- input$violin_ms
+  min_size <- input$violin_size_range[1]
+  max_size <- input$violin_size_range[2]
   a <- clusters[,c("tp1_cl_size", "tp2_cl_size")] %>% 
     set_colnames(c("TP1", "TP2")) %>% melt() %>% 
     as_tibble() %>% set_colnames(c("tp", "cs")) %>% 
-    filter(cs >= min_size)
+    filter(cs >= min_size) %>% 
+    filter(cs <= max_size)
 
   {ggplot(a, aes(tp, cs, fill = tp, color = tp)) + 
       geom_violin() + xlab("Timepoint") + ylab("Cluster Size") + 
@@ -244,20 +259,22 @@ Row {data-height=100}
 
 ### ALL TP1 cluster sizes 
 ```{r}
-numericInput("fc_ms_tp1", "Minimum cluster size to include in the TP1 histogram:", 
-             value = 10, min = 1, max = max(flagged$tp1_cl_size))
+f1 <- max(flagged$tp1_cl_size)
+sliderInput("fc_sizes_tp1", "Cluster sizes to include in the TP1 histogram:", 
+             value = c(10, f1), min = 1, max = f1)
 ```
 
 ### ALL TP2 cluster sizes 
 ```{r}
-numericInput("fc_ms_tp2", "Minimum cluster size to include in the TP1 histogram:", 
-             value = 10, min = 1, max = max(flagged$tp2_cl_size))
+f2 <- max(flagged$tp2_cl_size)
+sliderInput("fc_sizes_tp2", "Cluster sizes to include in the TP1 histogram:", 
+             value = c(10, f2), min = 1, max = f2)
 ```
 
 ### Violin plot of cluster sizes
 ```{r}
-numericInput("fc_violin_ms", "Minimum cluster size to include in the violin plot:", 
-             value = 10, min = 1, max = max(flagged$tp2_cl_size))
+sliderInput("fc_violin_sizes", "Cluster sizes to include in the violin plot:", 
+             value = c(10, f2), min = 1, max = f2)
 ```
 
 ### 
@@ -269,10 +286,13 @@ Row {data-height=750 .tabset}
 ### ALL TP1 cluster sizes 
 ```{r}
 renderPlotly({
-  min_size <- input$fc_ms_tp1
+  min_size <- input$fc_sizes_tp1[1]
+  max_size <- input$fc_sizes_tp1[2]
+  
   df_tp1 <- flagged$tp1_cl_size %>% 
     plotCS("tp1_cl_size") %>% 
-    filter(tp1_cl_size >= min_size)# %>% filter(count > 1)
+    filter(tp1_cl_size >= min_size) %>% 
+    filter(tp1_cl_size <= max_size)
 
   {ggplot(df_tp1, aes(x = tp1_cl_size, y = count)) + geom_bar(stat = "identity", fill = "forestgreen") + 
       xlab("Cluster size") + ylab("Number of clusters") + 
@@ -284,10 +304,13 @@ renderPlotly({
 ### ALL TP2 cluster sizes 
 ```{r}
 renderPlotly({
-  min_size <- input$fc_ms_tp2
+  min_size <- input$fc_sizes_tp2[1]
+  max_size <- input$fc_sizes_tp2[2]
+  
   df_tp2 <- flagged$tp2_cl_size %>% 
     plotCS("tp2_cl_size") %>% 
-    filter(tp2_cl_size >= min_size)# %>% filter(count > 1)
+    filter(tp2_cl_size >= min_size) %>% 
+    filter(tp2_cl_size <= max_size)
 
 {ggplot(df_tp2, aes(x = tp2_cl_size, y = count)) + geom_bar(stat = "identity", fill = "darkmagenta") + 
     xlab("Cluster size") + ylab("Number of clusters") + 
@@ -299,11 +322,14 @@ renderPlotly({
 ### Violin plot of cluster sizes
 ```{r}
 renderPlotly({
-  min_size <- input$fc_violin_ms
+  min_size <- input$fc_violin_sizes[1]
+  max_size <- input$fc_violin_sizes[2]
+  
   a <- flagged[,c("tp1_cl_size", "tp2_cl_size")] %>% 
     set_colnames(c("TP1", "TP2")) %>% melt() %>% 
     as_tibble() %>% set_colnames(c("tp", "cs")) %>% 
-    filter(cs >= min_size)
+    filter(cs >= min_size) %>% 
+    filter(cs <= max_size)
 
   {ggplot(a, aes(tp, cs, fill = tp, color = tp)) + 
       geom_violin() + xlab("Timepoint") + ylab("Cluster Size") + 
@@ -382,11 +408,6 @@ Column {data-width=500}
 
 ```{r}
 
-```
-
-
-```{r}
-# flagged %>% arrange(tp1_h, tp1_cl)
 ```
 
 
