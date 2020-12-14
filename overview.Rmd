@@ -106,36 +106,47 @@ output$selectedClusters <- DT::renderDataTable({
 renderPlotly({
   req(input$flaggedDT_rows_selected)
   
-  selected <- flagged[input$flaggedDT_rows_selected,]
-  df <- metrics %>% filter(tp2_h == selected$tp2_h & tp2_cl == selected$tp2_cl)
+  withProgress(message = "Preparing plot", value = 0, {
+    
+    selected <- flagged[input$flaggedDT_rows_selected,]
+    df <- metrics %>% filter(tp2_h == selected$tp2_h & tp2_cl == selected$tp2_cl)
+  
+    incProgress(1/5)
+    b1 <- metrics %>% filter(isolate %in% df$isolate) %>% 
+      select(-isolate) %>% unique() %>% 
+      rownames_to_column("id") %>% 
+      arrange(tp2_h, tp2_cl) %>% 
+      mutate(across(id, as.integer))
 
-  b1 <- metrics %>% filter(isolate %in% df$isolate) %>% 
-    select(-isolate) %>% unique() %>% 
-    rownames_to_column("id") %>% 
-    arrange(tp2_h, tp2_cl) %>% 
-    mutate(across(id, as.integer))
-
-  b4 <- b1 %>% select(id, tp1_cl_size, tp2_cl_size) %>% 
-    set_colnames(c("id", "TP1", "TP2")) %>% 
-    melt(id = "id") %>% as_tibble() %>% 
-    set_colnames(c("Rows (from previous tab)", "TP", "Cluster size")) %>% 
-    mutate(across(TP, as.character))
+    incProgress(1/5)
+    b4 <- b1 %>% select(id, tp1_cl_size, tp2_cl_size) %>% 
+      set_colnames(c("id", "TP1", "TP2")) %>% 
+      melt(id = "id") %>% as_tibble() %>% 
+      set_colnames(c("Rows (from previous tab)", "TP", "Cluster size")) %>% 
+      mutate(across(TP, as.character))
   
-  flags <- b1 %>% filter(flag != "sb") %>% pull(id)
+    incProgress(1/5)
+    flags <- b1 %>% filter(flag != "sb") %>% pull(id)
   
+    tmp1 <- b1 %>% select(id, tp1_h, tp1_cl, tp1_cl_size) %>% 
+      add_column("TP" = "TP1", .after = 1) %>% 
+      set_colnames(c("Rows (from previous tab)", "TP", "height", "cluster", "Cluster size"))
+    tmp2 <- b1 %>% select(id, tp2_h, tp2_cl, tp2_cl_size) %>% 
+      add_column("TP" = "TP2", .after = 1) %>% 
+      set_colnames(c("Rows (from previous tab)", "TP", "height", "cluster", "Cluster size"))
   
-  tmp1 <- b1 %>% select(id, tp1_h, tp1_cl, tp1_cl_size) %>% add_column("TP" = "TP1", .after = 1) %>% 
-    set_colnames(c("Rows (from previous tab)", "TP", "height", "cluster", "Cluster size"))
-  tmp2 <- b1 %>% select(id, tp2_h, tp2_cl, tp2_cl_size) %>% add_column("TP" = "TP2", .after = 1) %>% 
-    set_colnames(c("Rows (from previous tab)", "TP", "height", "cluster", "Cluster size"))
+    incProgress(1/5)
+    b5 <- b4 %>% left_join(., bind_rows(tmp1, tmp2), 
+                           by = c("Rows (from previous tab)", "TP", "Cluster size"))
   
-  b5 <- b4 %>% left_join(., bind_rows(tmp1, tmp2), by = c("Rows (from previous tab)", "TP", "Cluster size"))
+    text1 <- paste0("Cluster type: ", b5$TP, "\nHeight: ", b5$height, 
+                    "\nCluster: ", b5$cluster, "\nCluster size: ", b5$`Cluster size`, 
+                    "\nRow number: ", b5$`Rows (from previous tab)`)
   
-  text1 <- paste0("Cluster type: ", b5$TP, "\nHeight: ", b5$height, 
-                  "\nCluster: ", b5$cluster, "\nCluster size: ", b5$`Cluster size`, 
-                  "\nRow number: ", b5$`Rows (from previous tab)`)
+    incProgress(1/5)
+    b5$TP[b5$`Rows (from previous tab)` %in% flags] <- "Flagged"
+  })
   
-  b5$TP[b5$`Rows (from previous tab)` %in% flags] <- "Flagged"
   {ggplot(b5, aes(x = `Rows (from previous tab)`, y = `Cluster size`, color = TP, text = text1)) + 
       geom_point() + 
       ggtitle("Sizes of the clusters from the previous tab (ordered by TP2 height then cluster)") + 
@@ -171,8 +182,15 @@ sliderInput("violin_size_range", "Cluster sizes to include in the violin plot:",
              value = c(10, m2), min = 1, max = m2)
 ```
 
-### Data snapshot (of `r nrow(clusters)` rows)
-### Chart D
+### Number of TP2 clusters 
+```{r}
+renderValueBox({
+  clusters %>% select(tp2_h, tp2_cl) %>% unique() %>% nrow() %>% 
+    valueBox(value = ., icon = "ion-bar-outline")
+})
+```
+
+### 
 
 Row {data-height=750 .tabset}
 -----------------------------------------------------------------------
@@ -189,7 +207,8 @@ renderPlotly({
 
   {ggplot(all_tp1_sizes, aes(x = tp1_cl_size, y = count)) + geom_bar(stat = "identity", fill = "forestgreen") + 
       xlab("Cluster size") + ylab("Number of clusters") + 
-      ggtitle(paste0("Histogram of cluster sizes for TP1, for clusters with size >= ", min_size))} %>% ggplotly()
+      ggtitle(paste0("Histogram of cluster sizes for TP1, for clusters with sizes in [", 
+                     min_size, ",", max_size, "]"))} %>% ggplotly()
 })
 ```
 
@@ -205,7 +224,8 @@ renderPlotly({
 
   {ggplot(all_tp2_sizes, aes(x = tp2_cl_size, y = count)) + geom_bar(stat = "identity", fill = "darkmagenta") + 
       xlab("Cluster size") + ylab("Number of clusters") + 
-      ggtitle(paste0("Histogram of cluster sizes for TP2, for clusters with size >= ", min_size))} %>% ggplotly()  
+      ggtitle(paste0("Histogram of cluster sizes for TP2, for clusters with sizes in [", 
+                     min_size, ",", max_size, "]"))} %>% ggplotly()  
 })
 ```
 
@@ -216,11 +236,11 @@ renderPlotly({
   max_size <- input$violin_size_range[2]
   a <- clusters[,c("tp1_cl_size", "tp2_cl_size")] %>% 
     set_colnames(c("TP1", "TP2")) %>% melt() %>% 
-    as_tibble() %>% set_colnames(c("tp", "cs")) %>% 
-    filter(cs >= min_size) %>% 
-    filter(cs <= max_size)
+    as_tibble() %>% set_colnames(c("Timepoint", "CS")) %>% 
+    filter(CS >= min_size) %>% 
+    filter(CS <= max_size)
 
-  {ggplot(a, aes(tp, cs, fill = tp, color = tp)) + 
+  {ggplot(a, aes(Timepoint, CS, fill = Timepoint, color = Timepoint)) + 
       geom_violin() + xlab("Timepoint") + ylab("Cluster Size") + 
       scale_color_manual(values = c("forestgreen", "darkmagenta")) + 
       scale_fill_manual(values = c("forestgreen", "darkmagenta")) + 
@@ -277,7 +297,14 @@ sliderInput("fc_violin_sizes", "Cluster sizes to include in the violin plot:",
              value = c(10, f2), min = 1, max = f2)
 ```
 
-### 
+### Number of flagged TP2 clusters
+```{r}
+renderValueBox({
+  flagged$flag %>% unique() %>% length() %>% 
+    valueBox(value = ., icon = "ion-bar-outline")
+})
+```
+
 ### 
 
 Row {data-height=750 .tabset}
@@ -296,7 +323,8 @@ renderPlotly({
 
   {ggplot(df_tp1, aes(x = tp1_cl_size, y = count)) + geom_bar(stat = "identity", fill = "forestgreen") + 
       xlab("Cluster size") + ylab("Number of clusters") + 
-      ggtitle(paste0("Histogram of cluster sizes for TP1, for flagged clusters with size >= ", min_size))} %>% 
+      ggtitle(paste0("Histogram of cluster sizes for TP1, for flagged clusters with sizes in [", 
+                     min_size, ",", max_size, "]"))} %>% 
     ggplotly()
 })
 ```
@@ -314,7 +342,8 @@ renderPlotly({
 
 {ggplot(df_tp2, aes(x = tp2_cl_size, y = count)) + geom_bar(stat = "identity", fill = "darkmagenta") + 
     xlab("Cluster size") + ylab("Number of clusters") + 
-    ggtitle(paste0("Histogram of cluster sizes for TP1, for flagged clusters with size >= ", min_size))} %>% 
+    ggtitle(paste0("Histogram of cluster sizes for TP1, for flagged clusters with sizes in [", 
+                     min_size, ",", max_size, "]"))} %>% 
     ggplotly()
 })
 ```
@@ -327,11 +356,11 @@ renderPlotly({
   
   a <- flagged[,c("tp1_cl_size", "tp2_cl_size")] %>% 
     set_colnames(c("TP1", "TP2")) %>% melt() %>% 
-    as_tibble() %>% set_colnames(c("tp", "cs")) %>% 
-    filter(cs >= min_size) %>% 
-    filter(cs <= max_size)
+    as_tibble() %>% set_colnames(c("Timepoint", "CS")) %>% 
+    filter(CS >= min_size) %>% 
+    filter(CS <= max_size)
 
-  {ggplot(a, aes(tp, cs, fill = tp, color = tp)) + 
+  {ggplot(a, aes(Timepoint, CS, fill = Timepoint, color = Timepoint)) + 
       geom_violin() + xlab("Timepoint") + ylab("Cluster Size") + 
       scale_color_manual(values = c("forestgreen", "darkmagenta")) + 
       scale_fill_manual(values = c("forestgreen", "darkmagenta")) + 
@@ -345,8 +374,6 @@ renderPlotly({
 
 
 
-
-
 Page 4 {data-orientation=columns}
 =======================================================================
 Column {data-width=500}
@@ -355,43 +382,43 @@ Column {data-width=500}
 ### Tracking the flagged clusters (from TP1 to TP2)
 
 ```{r}
-actual_sizes <- time1_raw %>% melt(id = "isolate") %>% 
-  as_tibble() %>% dplyr::select(-isolate) %>% 
-  group_by_all() %>% summarise(n = n(), .groups = "drop") %>% 
-  set_colnames(c("h", "cl", "size")) %>% 
-  factorToInt("h") %>% 
-  createID("h", "cl")
-
-ids <- flagged %>% filter(num_novels != 0) %>% pull(tp1_id)
-
-df <- clusters %>% filter(tp1_id %in% ids) %>% arrange(tp1_h, tp1_cl)
-
-selectInput(inputId = "flagged_clusters", choices = df$tp1_id %>% unique(), 
-            label = "Select a TP1 originating cluster to track through TP2:")
+# actual_sizes <- time1_raw %>% melt(id = "isolate") %>% 
+#   as_tibble() %>% dplyr::select(-isolate) %>% 
+#   group_by_all() %>% summarise(n = n(), .groups = "drop") %>% 
+#   set_colnames(c("h", "cl", "size")) %>% 
+#   factorToInt("h") %>% 
+#   createID("h", "cl")
+# 
+# ids <- flagged %>% filter(num_novels != 0) %>% pull(tp1_id)
+# 
+# df <- clusters %>% filter(tp1_id %in% ids) %>% arrange(tp1_h, tp1_cl)
+# 
+# selectInput(inputId = "flagged_clusters", choices = df$tp1_id %>% unique(), 
+#             label = "Select a TP1 originating cluster to track through TP2:")
 ```
 
 ```{r}
-renderPlotly({
-  idx <- input$flagged_clusters
-  df1 <- df %>% filter(tp1_id == idx)
-  
-  dfa <- df1 %>% dplyr::select(tp1_h, tp1_cl_size) %>% 
-    add_column(tp = "Number of originals at TP1", .before = 1) %>% 
-    set_colnames(c("tp", "h", "size"))
-  
-  dfb <- df1 %>% dplyr::select(tp2_h, tp2_cl_size) %>% 
-    add_column(tp = "TP2", .before = 1) %>% 
-    set_colnames(c("tp", "h", "size"))
-  
-  df2 <- bind_rows(dfa, dfb) %>% unique() %>% 
-    add_row(tp = "Actual TP1 size", h = unique(dfa$h), size = actual_sizes$size[actual_sizes$id == idx])
-  
-  
-  {ggplot(df2, aes(x = h, y = size, color = tp)) + 
-    scale_color_manual(values = c("darkblue", "forestgreen", "darkmagenta")) + 
-    geom_point()} %>% 
-    ggplotly()
-})
+# renderPlotly({
+#   idx <- input$flagged_clusters
+#   df1 <- df %>% filter(tp1_id == idx)
+#   
+#   dfa <- df1 %>% dplyr::select(tp1_h, tp1_cl_size) %>% 
+#     add_column(tp = "Number of originals at TP1", .before = 1) %>% 
+#     set_colnames(c("tp", "h", "size"))
+#   
+#   dfb <- df1 %>% dplyr::select(tp2_h, tp2_cl_size) %>% 
+#     add_column(tp = "TP2", .before = 1) %>% 
+#     set_colnames(c("tp", "h", "size"))
+#   
+#   df2 <- bind_rows(dfa, dfb) %>% unique() %>% 
+#     add_row(tp = "Actual TP1 size", h = unique(dfa$h), size = actual_sizes$size[actual_sizes$id == idx])
+#   
+#   
+#   {ggplot(df2, aes(x = h, y = size, color = tp)) + 
+#     scale_color_manual(values = c("darkblue", "forestgreen", "darkmagenta")) + 
+#     geom_point()} %>% 
+#     ggplotly()
+# })
 ```
 
 
@@ -406,33 +433,20 @@ Column {data-width=500}
 
 ### 
 
-```{r}
-
-```
-
-
 ```{r plot3}
 # Flagged cluster sizes, Close-up of flagged cluster sizes
 #   - the cluster size differences between TP1 and TP2 (as a histogram)
 #     - for all clusters
 #     - for the flagged ones only
-```
 
 
-```{r plot4}
 #   - a barplot of the number of clusters at each height (shaded by average cluster size)
-```
 
-
-```{r plot5}
 #     - if you click on a bar, you get a scatter plot of the clusters at that height, at TP1, blue
 #       - y axis is size of cluster, x is ?
 #     - if you click on a bar, you get a scatter plot of the clusters at that height, at TP2, red
 #       - y axis is size of cluster, x is ?
-```
 
-
-```{r plot6}
 #     - if you click on a cluster at TP1, you get a bubble plot of that cluster overlayed by the clusters it is the 
 #     foundation for at TP2, so we can see the growth
 ```
