@@ -53,64 +53,121 @@ withnovs <- time2_raw %>%
 
 t1clusters <- time1_raw %>% select(-isolate) %>% unique()
 t1_raw <- time1_raw
+t1_coded <- "data/timepoint1_data.csv" %>% readData(., 1) %>% 
+  mutate(isolate = 1:nrow(.)) %>% 
+  melt(id = "isolate") %>% as_tibble() %>% 
+  set_colnames(c("isolate", "tp1_h", "tp1_cl")) %>% 
+  factorToInt("tp1_h")
+
 t2_raw <- time2_raw
+t2_raw$id <- paste0(t2_raw$tp2_h, "-", t2_raw$tp2_cl)
 
-hxallc <- t1clusters %>% filter(tp1_h == 0)
-
-
-
-# h0 <- lapply(1:nrow(hxallc), function(i) {
-for (i in 1:nrow(hxallc))  {
-  print(paste0(i, "/", nrow(hxallc)))
-  hx <- hxallc$tp1_h[i]
-  clx <- hxallc$tp1_cl[i]
+collectGrowth <- function(hxallc, height, t1_raw, t2_raw) {
+  print(height)
   
-  t1_hxcx <- t1_raw %>% 
-    filter(tp1_h == hx & tp1_cl == clx) %>% 
-    add_column(tp1_cl_size = nrow(.))
-  
-  # these are the TP2 clusters that each have at least some isolates 
-  # from cluster x and also have size at least as large as cluster x  
-  a3 <- t2_raw %>% 
-    filter(isolate %in% t1_hxcx$isolate) %>% 
-    createID(., "tp2_h", "tp2_cl")
+  lapply(1:nrow(hxallc), function(i) {
+    print(paste0(i, "/", nrow(hxallc)))
+    hx <- hxallc$tp1_h[i]
+    clx <- hxallc$tp1_cl[i]
     
-  a4 <- table(a3$id) %>% as.data.frame() %>% as_tibble() %>% 
-    filter(Freq >= nrow(t1_hxcx)) %>% select(Var1)
-  
-  a3 %>% filter(id %in% a4$Var1) %>% 
-  countRows(., "num_from_cx") %>% 
-    filter(num_from_cx >= nrow(t1_hxcx)) %>% 
-    # these are the isolates found in the TP2 clusters that contain 
-    # at least all the isolates from cluster x and possibly more
-    select(-num_from_cx) %>% 
-    right_join(t2_raw, ., c("tp2_h", "tp2_cl")) %>% 
-    # these are the actual sizes of these TP2 clusters
-    countRows(., "tp2_cl_size")
-  # a3 is the set of height-clusters and their actual TP2 cluster sizes that 
-  # contain all of the isolates from hx-cx (and possibly more isolates)
-  
-  a4 <- left_join(a3, withnovs, by = c("tp2_h", "tp2_cl"))
-  a4$num_novs[is.na(a4$num_novs)] <- 0
-  
-  a5 <- t1_hxcx %>% 
-    select(-isolate) %>% 
-    unique() %>% 
-    bind_cols(., a4)
-  
-  a5$growth <- (a5$tp2_cl_size - a5$tp1_cl_size) / a5$tp1_cl_size
-  a5$acc <- a5$num_novs / a5$growth
-  
-  if (i == 1) {
-    tmp2 <- a5[which.max(a5$acc),]
-  }else {
-    tmp2 <- a5[which.max(a5$acc),] %>% bind_rows(tmp2, .)
-  }
-  
+    t1_hxcx <- t1_raw %>% 
+      filter(tp1_h == hx & tp1_cl == clx) %>% 
+      add_column(tp1_cl_size = nrow(.))
+    
+    cxdata <- t1_hxcx %>% select(tp1_h, tp1_cl, tp1_cl_size) %>% slice(1)
+    
+    a3 <- t2_raw %>% filter(isolate %in% t1_hxcx$isolate)
+    
+    kc <- table(a3$id) %>% `>=`(nrow(t1_hxcx)) %>% which() %>% names()
+    
+    a5 <- t2_raw %>% filter(id %in% kc) %>% 
+      select(id) %>% table() %>% as.data.frame() %>% as_tibble() %>% 
+      set_colnames(c("id", "tp2_cl_size")) %>% 
+      mutate(across(id, as.character))
+    
+    a9 <- a3 %>% select(-isolate) %>% unique() %>% 
+      right_join(., a5, by = "id") %>% 
+      left_join(., withnovs, by = c("tp2_h", "tp2_cl")) %>% 
+      mutate(num_novs = ifelse(is.na(num_novs), 0, num_novs)) %>% 
+      bind_cols(cxdata, .)
+    
+    a9$growth <- (a9$tp2_cl_size - a9$tp1_cl_size) / a9$tp1_cl_size
+    a9$acc <- a9$num_novs / a9$growth
+    
+    a9[which.max(a9$acc),] %>% return()
+  }) %>% bind_rows() %>% return()
 }
-# })
+
+h_before <- 0
+hxallc <- t1clusters %>% filter(tp1_h == h_before)
+# tmp2 <- collectGrowth(hxallc, h_before, t1_raw, t2_raw)
+tmp2 <- readRDS("tmp2.Rds")
 
 
+h_before <- 0
+for (h in unique(t1_coded$tp1_h)[-1]) {
+  h_after <- h
+  ca <- t1_coded %>% filter(tp1_h == h_after)
+  comps_after <- lapply(unique(ca$tp1_cl), function(j) {
+    ca %>% filter(tp1_cl == j) %>% pull(isolate) %>% sort() %>% 
+      paste0(collapse = ",") %>% tibble(composition = .) %>% 
+      bind_cols(tp1_h = h_after, tp1_cl = j)
+  }) %>% bind_rows() %>% 
+    set_colnames(c("composition", "h_after", "cl_after"))
+
+  cb <- t1_coded %>% filter(tp1_h == h_before)
+  comps_before <- lapply(unique(cb$tp1_cl), function(j) {
+    cb %>% filter(tp1_cl == j) %>% pull(isolate) %>% sort() %>% 
+      paste0(collapse = ",") %>% tibble(composition = .) %>% 
+      bind_cols(tp1_h = h_before, tp1_cl = j)
+  }) %>% bind_rows() %>% 
+    set_colnames(c("composition", "h_before", "cl_before"))
+
+  # clusters that have not changed from the previous height
+  did_not_change <- intersect(comps_after$composition, comps_before$composition)
+  stayed_the_same <- comps_after %>% filter(composition %in% did_not_change) %>% 
+    left_join(., comps_before, by = "composition")
+
+  part1 <- stayed_the_same %>% 
+    left_join(., tmp2, by = c("h_before" = "tp1_h", "cl_before" = "tp1_cl")) %>% 
+    select(-h_before, -cl_before, -composition) %>% 
+    rename(tp1_h = h_after, tp1_cl = cl_after)
+  
+  
+  # clusters that did change from the previous height
+  changed_clusters <- comps_after %>% filter(!(composition %in% did_not_change)) %>% 
+    select(-composition) %>% set_colnames(c("tp1_h", "tp1_cl"))
+
+  h_before <- h_after
+  part2 <- collectGrowth(changed_clusters, h_before, t1_raw, t2_raw)
+  tmp2 <- bind_rows(tmp2, new_height)
+  saveRDS(tmp2, "tmp3.Rds")
+}
+
+tmp3 <- readRDS("tmp3.Rds")
+
+
+
+
+
+
+
+
+
+
+
+
+
+# these are the TP2 clusters that each have at least some isolates 
+# from cluster x and also have size at least as large as cluster x  
+# 
+# these are the isolates found in the TP2 clusters that contain 
+# at least all the isolates from cluster x and possibly more
+# 
+# these are the actual sizes of these TP2 clusters
+# 
+# a3 is the set of height-clusters and their actual TP2 cluster sizes that 
+# contain all of the isolates from hx-cx (and possibly more isolates)
 
 
 # ggplot(a5, aes(x = tp2_h, y = acc)) + geom_point()
@@ -161,7 +218,7 @@ for (i in 1:nrow(hxallc))  {
 #   tmp2 <- bind_rows(tmp2, tmp)
 # }
 
-tmp2 <- readRDS("tmp2.Rds")
+# tmp2 <- readRDS("tmp2.Rds")
 
 
 

@@ -28,17 +28,17 @@ cat(paste0("\nPreparing data for processing (see log file for details)\n"))
 pb <- txtProgressBar(min = 0, max = 10, initial = 1, style = 3)
 
 ## FOR USER: replace the filename variables with quoted file paths if you don't want to input them each time
+# # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||33333
+# # the raw datasets, no filtering or other changes made
 message("Loading datafiles")
+time1_raw <- "data/timepoint1_data.csv" %>% readData(., 1)
+time2_raw <- "data/timepoint2_data.csv" %>% readData(., 2)
+
 time1_raw <- input_args[1] %>% readData(., 1)
 time2_raw <- input_args[2] %>% readData(., 2)
 
 message("Successfully read in datafiles")
 setTxtProgressBar(pb, 2)
-
-# # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||33333
-# # the raw datasets, no filtering or other changes made
-# time1_raw <- "data/timepoint1_data.csv" %>% readData(., 1)
-# time2_raw <- "data/timepoint2_data.csv" %>% readData(., 2)
 
 message("Preparing data for processing")
 # USER: make sure the first column is the isolate labeling
@@ -64,8 +64,10 @@ ids <- list()
 
 ### BASE CASE:
 message("Collecting height data for base case, height 0.")
+
 # this should be '0', the first column is the isolates
 base_case_h <- colnames(time2_raw)[2]
+
 # finding the composition (in terms of coded isolates) of each of the clusters
 # note that this includes both novel and original isolates
 precc <- clustComp(time2_coded, base_case_h, "h_before")
@@ -93,6 +95,7 @@ cat(paste0("\nCollecting data for all ", length(colnames(time2_raw)[-1][-1]),
 hpb <- txtProgressBar(min = 0, max = length(colnames(time2_raw)[-1][-1]), initial = 0, style = 3)
 
 for (j in 1:length(colnames(time2_raw)[-1][-1])) {
+  j <- 1
   height2 <- colnames(time2_raw)[-1][-1][j]
   message(paste0("Threshold h_", height2, " - ", j, " / ", length(colnames(time2_raw)[-1][-1])))
   

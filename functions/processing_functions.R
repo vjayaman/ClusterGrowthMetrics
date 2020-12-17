@@ -43,6 +43,11 @@ clusterIDS <- function(dataset, dtype = 2) {
 }
 
 # --------------------------------------------------------------------------------------------------------------
+# time2_data <- df
+# all_clusters <- ac
+# df1 <- meltedTP1
+# ids <- ids
+# jo <- just_originals
 resultsProcess <- function(time2_data, all_clusters, df1, ids, jo) {
   # given the heights and cluster assignments for all TP1 isolates, we filter to keep only the genomes found 
   # in a particular cluster kc, then we identify all the clusters at TP1 that only contain these genomes
@@ -100,6 +105,11 @@ resultsProcess <- function(time2_data, all_clusters, df1, ids, jo) {
 # it is flagged for both, when it should only be flagged for 1-1777 --> regardless of the change in cluster 
 # size, new clusters should only be flagged once per originating cluster
 
+# df <- time2_raw
+# df_coded <- time2_coded
+# h <- height2
+# novel_isolates <- novels
+# precomp <- precc
 oneHeight <- function(df, df_coded, h, novel_isolates, meltedTP1, ids, ac, precomp) {
   # we find the cluster assignments for all isolates at a particular height at TP2 that can be 
   # found in the given list of clusters (have not yet found originating clusters for these)

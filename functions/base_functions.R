@@ -89,7 +89,7 @@ noChange <- function(postcomp, cc, precomp, single_height, ids) {
 }
 
 # we find the cluster assignments for all isolates at a particular height at TP2 
-# that can be found in the given list of clusters (have not yet originating clusters for these)
+# that can be found in the given list of clusters (have not yet found originating clusters for these)
 clusterAssignments <- function(h, time2_data, key_clusters, novels) {
   # the cluster assignments for all clusters found in key_clusters, those that 
   # changed in composition from h1 to h2
