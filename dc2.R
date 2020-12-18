@@ -62,51 +62,119 @@ t1_coded <- "data/timepoint1_data.csv" %>% readData(., 1) %>%
 t2_raw <- time2_raw
 t2_raw$id <- paste0(t2_raw$tp2_h, "-", t2_raw$tp2_cl)
 
-collectGrowth <- function(hxallc, height, t1_raw, t2_raw) {
-  print(height)
-  
+# --------------------------------------------------------------------------------------------------------
+# part2 <- collectGrowth(changed_clusters, h_before, t1_raw, t2_raw)
+# hxallc <- changed_clusters
+collectGrowth <- function(hxallc, t1_raw, t2_raw) {
+  pb <- txtProgressBar(min = 0, max = nrow(hxallc), initial = 0, style = 3)
+  k <- 0
   lapply(1:nrow(hxallc), function(i) {
-    print(paste0(i, "/", nrow(hxallc)))
+    # print(paste0(i, "/", nrow(hxallc)))
+    k <- k + i
+    setTxtProgressBar(pb, k)
+    
     hx <- hxallc$tp1_h[i]
     clx <- hxallc$tp1_cl[i]
     
+    # the isolates of the selected TP1 cluster, at height hx
     t1_hxcx <- t1_raw %>% 
       filter(tp1_h == hx & tp1_cl == clx) %>% 
       add_column(tp1_cl_size = nrow(.))
     
+    # getting the height, cluster, and size of the selected TP1 cluster
     cxdata <- t1_hxcx %>% select(tp1_h, tp1_cl, tp1_cl_size) %>% slice(1)
     
+    # all TP2 assignments for the isolates found in the selected TP1 cluster
     a3 <- t2_raw %>% filter(isolate %in% t1_hxcx$isolate)
     
+    # the TP2 (height-cluster) IDs for clusters that contain at least 
+    # all the isolates from the selected TP1 cluster
     kc <- table(a3$id) %>% `>=`(nrow(t1_hxcx)) %>% which() %>% names()
     
+    # the actual TP2 cluster sizes for the TP2 clusters that contain at least 
+    # all the isolates from the selected TP1 cluster
     a5 <- t2_raw %>% filter(id %in% kc) %>% 
       select(id) %>% table() %>% as.data.frame() %>% as_tibble() %>% 
       set_colnames(c("id", "tp2_cl_size")) %>% 
       mutate(across(id, as.character))
     
+    # the TP1 cluster, tracked to TP2
+    # we have all the actual sizes, as well as the number of novels
+    # note that at TP2 some of these clusters have other isolates that are not novels
     a9 <- a3 %>% select(-isolate) %>% unique() %>% 
       right_join(., a5, by = "id") %>% 
       left_join(., withnovs, by = c("tp2_h", "tp2_cl")) %>% 
       mutate(num_novs = ifelse(is.na(num_novs), 0, num_novs)) %>% 
       bind_cols(cxdata, .)
     
-    a9$growth <- (a9$tp2_cl_size - a9$tp1_cl_size) / a9$tp1_cl_size
-    a9$acc <- a9$num_novs / a9$growth
+    # the actual growth of these clusters (TP2 size - TP1 size) / TP1 size
+    a9$actual_growth_rate <- (a9$tp2_cl_size - a9$tp1_cl_size) / a9$tp1_cl_size
+    # the growth in novels from TP1 cluster to TP2 cluster
+    # a9$novel_growth_rate <- (a9$num_novs) / a9$tp1_cl_size
     
-    a9[which.max(a9$acc),] %>% return()
+    # the number of novels in the TP2 cluster over the growth rate --> growth acceleration?
+    a9$acc <- a9$num_novs / a9$actual_growth_rate
+    
+    a9 %>% arrange(-acc, tp2_h, tp2_cl) %>% slice(1) %>% return()
   }) %>% bind_rows() %>% return()
 }
 
 h_before <- 0
 hxallc <- t1clusters %>% filter(tp1_h == h_before)
-# tmp2 <- collectGrowth(hxallc, h_before, t1_raw, t2_raw)
-tmp2 <- readRDS("tmp2.Rds")
+print(paste0("Collecting data for height ", h_before))
+tmp3 <- readRDS("tmp4.Rds") %>% filter(tp1_h == h_before)
+# tmp3 <- collectGrowth(hxallc, t1_raw, t2_raw)
+# saveRDS(tmp3, "tmp2.Rds")
+# tmp3 <- readRDS("tmp3.Rds")
+tmp3$flag <- NA
+
+ids <- list()
+for (j in 1:nrow(tmp3)) {
+  if (tmp3$id[j] %in% ids) {
+    tmp3$flag[j] <- "sb"
+  }else {
+    ids <- c(unlist(ids), tmp3$id[j])
+    tmp3$flag[j] <- tmp3$id[j]
+  }
+}
+
+cb <- t1_coded %>% createID(., "tp1_h", "tp1_cl")
+# 5:10 - 
+a1 <- unique(cb$id)
+cb2 <- lapply(1:length(a1), function(i) {
+  print(paste0(i, "/", length(a1)))
+  print(a1[i])
+  cb %>% filter(id == a1[i]) %>% 
+    pull(isolate) %>% 
+    paste0(., collapse = ",") %>% 
+    tibble(composition = ., id = a1[i]) %>% return()
+})
+
+lapply(unique(cb2$id), function(id_x) {
+  cb2 %>% filter(id == id_x) %>% 
+    pull(isolate) %>% 
+    paste0(., collapse = ",") %>% 
+    tibble(composition = ., id = id_x) %>% 
+    return()
+}) %>% bind_rows()
 
 
-h_before <- 0
+
+comps_before <- lapply(unique(cb$tp1_cl), function(j) {
+  cb %>% filter(tp1_cl == j) %>% pull(isolate) %>% sort() %>%
+    paste0(collapse = ",") %>% tibble(composition = .) %>%
+    bind_cols(tp1_h = h_before, tp1_cl = j)
+}) %>% bind_rows() %>%
+  set_colnames(c("composition", "h_before", "cl_before"))
+
+
+
+
 for (h in unique(t1_coded$tp1_h)[-1]) {
+  h <- 407
   h_after <- h
+  print(paste0("Collecting data for height ", h_after))
+  
   ca <- t1_coded %>% filter(tp1_h == h_after)
   comps_after <- lapply(unique(ca$tp1_cl), function(j) {
     ca %>% filter(tp1_cl == j) %>% pull(isolate) %>% sort() %>% 
@@ -115,41 +183,44 @@ for (h in unique(t1_coded$tp1_h)[-1]) {
   }) %>% bind_rows() %>% 
     set_colnames(c("composition", "h_after", "cl_after"))
 
-  cb <- t1_coded %>% filter(tp1_h == h_before)
-  comps_before <- lapply(unique(cb$tp1_cl), function(j) {
-    cb %>% filter(tp1_cl == j) %>% pull(isolate) %>% sort() %>% 
-      paste0(collapse = ",") %>% tibble(composition = .) %>% 
-      bind_cols(tp1_h = h_before, tp1_cl = j)
-  }) %>% bind_rows() %>% 
-    set_colnames(c("composition", "h_before", "cl_before"))
-
   # clusters that have not changed from the previous height
   did_not_change <- intersect(comps_after$composition, comps_before$composition)
   stayed_the_same <- comps_after %>% filter(composition %in% did_not_change) %>% 
     left_join(., comps_before, by = "composition")
 
   part1 <- stayed_the_same %>% 
-    left_join(., tmp2, by = c("h_before" = "tp1_h", "cl_before" = "tp1_cl")) %>% 
+    left_join(., tmp3, by = c("h_before" = "tp1_h", "cl_before" = "tp1_cl")) %>% 
     select(-h_before, -cl_before, -composition) %>% 
     rename(tp1_h = h_after, tp1_cl = cl_after)
   
-  
   # clusters that did change from the previous height
-  changed_clusters <- comps_after %>% filter(!(composition %in% did_not_change)) %>% 
+  changed_clusters <- comps_after %>% 
+    filter(!(composition %in% did_not_change)) %>% 
     select(-composition) %>% set_colnames(c("tp1_h", "tp1_cl"))
 
+  part2 <- collectGrowth(changed_clusters, t1_raw, t2_raw)
+  part2$flag <- NA
+  
+  for (j in 1:nrow(part2)) {
+    if (part2$id[j] %in% ids) {
+      part2$flag[j] <- "sb"
+    }else {
+      ids <- c(unlist(ids), part2$id[j])
+      part2$flag[j] <- part2$id[j]
+    }
+  }
+  
   h_before <- h_after
-  part2 <- collectGrowth(changed_clusters, h_before, t1_raw, t2_raw)
-  tmp2 <- bind_rows(tmp2, new_height)
-  saveRDS(tmp2, "tmp3.Rds")
+  comps_before <- comps_after %>% set_colnames(c("composition", "h_before", "cl_before"))
+  
+  tmp3 <- bind_rows(part1, part2) %>% bind_rows(tmp3, .)
+  saveRDS(tmp3, "tmp3.Rds")
 }
 
-tmp3 <- readRDS("tmp3.Rds")
 
 
-
-
-
+# saveRDS(ids, "ids.Rds")
+# saveRDS(tmp3, "tmp4.Rds")
 
 
 
