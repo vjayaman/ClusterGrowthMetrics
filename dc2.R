@@ -1,4 +1,4 @@
-x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress")
+x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", "stringr")
 lapply(x, require, character.only = TRUE)
 
 # given the defining filename, read in the data (need the full path from your working directory)
@@ -29,8 +29,40 @@ createID <- function(df, c1, c2) {
   df %>% add_column(id = paste0(pull(df, c1), "-", pull(df, c2))) %>% return()
 }
 
-# source("functions/base_functions.R")
-# source("functions/processing_functions.R")
+compsSet <- function(tp_coded, tp) {
+  cb <- tp_coded %>% set_colnames(c("isolate", "tp_h", "tp_cl", "id"))
+  a1 <- cb$tp_h %>% unique()
+  
+  pb <- txtProgressBar(min = 0, max = length(a1), initial = 0, style = 3)
+  tmp <- lapply(1:length(a1), function(i) {
+    setTxtProgressBar(pb, i)
+    x <- cb %>% filter(tp_h == a1[i]) %>% arrange(isolate)
+    if (length(unique(x$id)) > 1) {
+      a2 <- aggregate(isolate ~ id, data = x, FUN = toString) %>% as_tibble() %>% 
+        set_colnames(c("id", "composition"))
+      a3 <- aggregate(isolate ~ id, data = x, FUN = length) %>% as_tibble() %>% 
+        set_colnames(c("id", "size"))
+      left_join(a2, a3, by = "id") %>% return()
+    }else {
+      x$isolate %>% paste0(., collapse=",") %>% 
+        tibble(id = unique(x$id), composition = ., 
+               size = length(x$isolate)) %>% return()
+    }
+  }) %>% bind_rows()
+  close(pb)
+  
+  tpcomps <- str_split_fixed(tmp$id, "-", 2) %>% 
+    set_colnames(c("tp_h", "tp_cl")) %>% 
+    as_tibble() %>% 
+    bind_cols(., tmp) %>% 
+    mutate(across(c(tp_h, tp_cl), as.integer))
+  
+  if (tp == 1) {
+    tpcomps %>% rename(tp1_h = tp_h, tp1_cl = tp_cl, tp1_cl_size = size) %>% return()
+  }else {
+    tpcomps %>% rename(tp2_h = tp_h, tp2_cl = tp_cl, tp2_cl_size = size) %>% return()
+  }
+}
 
 ## FOR USER: replace the filename variables with quoted file paths if you don't want to input them each time
 # # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||33333
@@ -57,121 +89,113 @@ t1_coded <- "data/timepoint1_data.csv" %>% readData(., 1) %>%
   mutate(isolate = 1:nrow(.)) %>% 
   melt(id = "isolate") %>% as_tibble() %>% 
   set_colnames(c("isolate", "tp1_h", "tp1_cl")) %>% 
-  factorToInt("tp1_h")
+  factorToInt("tp1_h") %>% 
+  createID(., "tp1_h", "tp1_cl")
 
 t2_raw <- time2_raw
 t2_raw$id <- paste0(t2_raw$tp2_h, "-", t2_raw$tp2_cl)
 
+t2_coded <- "data/timepoint2_data.csv" %>% readData(., 2) %>% 
+  mutate(isolate = 1:nrow(.)) %>% 
+  melt(id = "isolate") %>% as_tibble() %>% 
+  set_colnames(c("isolate", "tp2_h", "tp2_cl")) %>% 
+  factorToInt("tp2_h") %>% 
+  createID(., "tp2_h", "tp2_cl")
+
+# t1_comps <- t1_coded %>% rename(tp_h = tp1_h, tp_cl = tp1_cl) %>% 
+#   arrange(tp_h, tp_cl, isolate) %>% 
+#   compsSet(., 1)
+# # saveRDS(t1_comps, "t1_comps.Rds")
+t1_comps <- readRDS("t1_comps.Rds")
+
+# t2_comps <- t2_coded %>% rename(tp_h = tp2_h, tp_cl = tp2_cl) %>% 
+#   arrange(tp_h, tp_cl, isolate) %>% 
+#   compsSet(., 2)
+# 
+# novels <- setdiff(t2_coded$isolate, t1_coded$isolate)
+# counting_novels <- t2_coded %>% 
+#   filter(isolate %in% novels) %>% 
+#   group_by(id) %>% 
+#   summarise(num_novs = n(), .groups = "drop")
+# t2_comps <- t2_comps %>% left_join(., counting_novels, by = "id")
+# t2_comps$num_novs[is.na(t2_comps$num_novs)] <- 0
+# # saveRDS(t2_comps, "t2_comps.Rds")
+t2_comps <- readRDS("t2_comps.Rds")
+
 # --------------------------------------------------------------------------------------------------------
 # part2 <- collectGrowth(changed_clusters, h_before, t1_raw, t2_raw)
 # hxallc <- changed_clusters
-collectGrowth <- function(hxallc, t1_raw, t2_raw) {
-  pb <- txtProgressBar(min = 0, max = nrow(hxallc), initial = 0, style = 3)
+trackClusters <- function(hx, t2_comps) {
+  pb <- txtProgressBar(min = 0, max = nrow(hx), initial = 0, style = 3)
   k <- 0
-  lapply(1:nrow(hxallc), function(i) {
+  tmp <- lapply(1:nrow(hx), function(i) {
     # print(paste0(i, "/", nrow(hxallc)))
     k <- k + i
     setTxtProgressBar(pb, k)
+    # the composition (and cluster size) data for the cluster in row i of 
+    # the TP1 composition data (for the height in hx)
+    cxdata <- hx[i,]
     
-    hx <- hxallc$tp1_h[i]
-    clx <- hxallc$tp1_cl[i]
+    # the indices of the TP2 composition dataset where clusters contain at least all 
+    # the isolates from the cxdata cluster
+    inds <- grep(cxdata$composition, t2_comps$composition)
+    kc <- t2_comps[inds,] %>% select(-composition, -id)
     
-    # the isolates of the selected TP1 cluster, at height hx
-    t1_hxcx <- t1_raw %>% 
-      filter(tp1_h == hx & tp1_cl == clx) %>% 
-      add_column(tp1_cl_size = nrow(.))
-    
-    # getting the height, cluster, and size of the selected TP1 cluster
-    cxdata <- t1_hxcx %>% select(tp1_h, tp1_cl, tp1_cl_size) %>% slice(1)
-    
-    # all TP2 assignments for the isolates found in the selected TP1 cluster
-    a3 <- t2_raw %>% filter(isolate %in% t1_hxcx$isolate)
-    
-    # the TP2 (height-cluster) IDs for clusters that contain at least 
-    # all the isolates from the selected TP1 cluster
-    kc <- table(a3$id) %>% `>=`(nrow(t1_hxcx)) %>% which() %>% names()
-    
-    # the actual TP2 cluster sizes for the TP2 clusters that contain at least 
-    # all the isolates from the selected TP1 cluster
-    a5 <- t2_raw %>% filter(id %in% kc) %>% 
-      select(id) %>% table() %>% as.data.frame() %>% as_tibble() %>% 
-      set_colnames(c("id", "tp2_cl_size")) %>% 
-      mutate(across(id, as.character))
-    
-    # the TP1 cluster, tracked to TP2
-    # we have all the actual sizes, as well as the number of novels
-    # note that at TP2 some of these clusters have other isolates that are not novels
-    a9 <- a3 %>% select(-isolate) %>% unique() %>% 
-      right_join(., a5, by = "id") %>% 
-      left_join(., withnovs, by = c("tp2_h", "tp2_cl")) %>% 
-      mutate(num_novs = ifelse(is.na(num_novs), 0, num_novs)) %>% 
-      bind_cols(cxdata, .)
-    
-    # the actual growth of these clusters (TP2 size - TP1 size) / TP1 size
-    a9$actual_growth_rate <- (a9$tp2_cl_size - a9$tp1_cl_size) / a9$tp1_cl_size
-    # the growth in novels from TP1 cluster to TP2 cluster
-    # a9$novel_growth_rate <- (a9$num_novs) / a9$tp1_cl_size
-    
-    # the number of novels in the TP2 cluster over the growth rate --> growth acceleration?
-    a9$acc <- a9$num_novs / a9$actual_growth_rate
-    
-    a9 %>% arrange(-acc, tp2_h, tp2_cl) %>% slice(1) %>% return()
-  }) %>% bind_rows() %>% return()
+    # merged the data for the single TP1 clusters and all corresponding TP2 clusters
+    cxdata %>% select(-composition, -id) %>% bind_cols(., kc) %>% return()
+  }) %>% bind_rows()
+  close(pb)
+  return(tmp)
 }
 
 h_before <- 0
-hxallc <- t1clusters %>% filter(tp1_h == h_before)
 print(paste0("Collecting data for height ", h_before))
-tmp3 <- readRDS("tmp4.Rds") %>% filter(tp1_h == h_before)
-# tmp3 <- collectGrowth(hxallc, t1_raw, t2_raw)
-# saveRDS(tmp3, "tmp2.Rds")
-# tmp3 <- readRDS("tmp3.Rds")
-tmp3$flag <- NA
+hx <- t1_comps %>% filter(tp1_h == h_before)
+# tmp <- trackClusters(hx, t2_comps)
+# saveRDS(tmp, "tmp.Rds")
+tmp <- readRDS("tmp.Rds")
 
-ids <- list()
-for (j in 1:nrow(tmp3)) {
-  if (tmp3$id[j] %in% ids) {
-    tmp3$flag[j] <- "sb"
-  }else {
-    ids <- c(unlist(ids), tmp3$id[j])
-    tmp3$flag[j] <- tmp3$id[j]
-  }
-}
+# now need to make metric calculations and extract the best result:
+#     - the TP2 cluster that has the largest proportion of novels to growth rate
+#     i.e. the "best" TP2 cluster where we look at clusters that absorbed lots of novels very quickly
+# the actual growth of these clusters (TP2 size - TP1 size) / TP1 size
+tmp$actual_growth_rate <- (tmp$tp2_cl_size - tmp$tp1_cl_size) / tmp$tp1_cl_size
+# the number of novels in the TP2 cluster over the growth rate --> growth acceleration?
+tmp$acc <- tmp$num_novs / tmp$actual_growth_rate
+tmp$acc[is.na(tmp$acc)] <- 0
+tmp$flag <- NA
 
-cb <- t1_coded %>% createID(., "tp1_h", "tp1_cl")
-# 5:10 - 
-a1 <- unique(cb$id)
-cb2 <- lapply(1:length(a1), function(i) {
-  print(paste0(i, "/", length(a1)))
-  print(a1[i])
-  cb %>% filter(id == a1[i]) %>% 
-    pull(isolate) %>% 
-    paste0(., collapse = ",") %>% 
-    tibble(composition = ., id = a1[i]) %>% return()
-})
 
-lapply(unique(cb2$id), function(id_x) {
-  cb2 %>% filter(id == id_x) %>% 
-    pull(isolate) %>% 
-    paste0(., collapse = ",") %>% 
-    tibble(composition = ., id = id_x) %>% 
-    return()
+# note: the way these are flagged, we can see how many TP2 clusters were formed from the 
+# selected TP1 cluster before we get to the "key growth" where a cluster went from its state
+# at TP1 to its state at TP2 with a remarkable amount of growth
+pb <- txtProgressBar(min = 0, max = nrow(hx), initial = 0, style = 3)
+clx <- unique(hx$tp1_cl)
+k <- 0
+h0 <- lapply(1:length(clx), function(i) {
+  k <- k + i
+  setTxtProgressBar(pb, k)
+  df <- tmp %>% filter(tp1_cl == clx[i]) %>% arrange(tp2_h, tp2_cl)
+  df$flag <- 1:nrow(df)
+  df %>% arrange(-acc, tp2_h, tp2_cl) %>% slice(1) %>% return()
 }) %>% bind_rows()
+close(pb)
+
+h0$acc[which(h0$actual_growth_rate == 0)] <- 0
+
+tmp2 <- h0
 
 
-
-comps_before <- lapply(unique(cb$tp1_cl), function(j) {
-  cb %>% filter(tp1_cl == j) %>% pull(isolate) %>% sort() %>%
-    paste0(collapse = ",") %>% tibble(composition = .) %>%
-    bind_cols(tp1_h = h_before, tp1_cl = j)
-}) %>% bind_rows() %>%
-  set_colnames(c("composition", "h_before", "cl_before"))
-
-
+# comps_before <- lapply(unique(cb$tp1_cl), function(j) {
+#   cb %>% filter(tp1_cl == j) %>% pull(isolate) %>% sort() %>%
+#     paste0(collapse = ",") %>% tibble(composition = .) %>%
+#     bind_cols(tp1_h = h_before, tp1_cl = j)
+# }) %>% bind_rows() %>%
+#   set_colnames(c("composition", "h_before", "cl_before"))
 
 
 for (h in unique(t1_coded$tp1_h)[-1]) {
-  h <- 407
+  
   h_after <- h
   print(paste0("Collecting data for height ", h_after))
   
@@ -249,47 +273,6 @@ for (h in unique(t1_coded$tp1_h)[-1]) {
 
 
 
-
-
-# notin <- setdiff(time1_raw$isolate, t1_h_cx$isolate)
-# ids <- list()
-# i <- 1
-# hx <- a3$height[i]
-# cx <- a3$cluster[i]
-# x <- time2_raw %>% filter(height == hx & cluster == cx) %>% pull(isolate)
-# x1 <- list(x)
-# ids[paste0(hx, "-", cx)] <- x1
-# tmp2 <- a3 %>% filter(height == hx & cluster == cx) %>% 
-#   add_column(fo = length(intersect(x, t1_h_cx$isolate))) %>% 
-#   add_column(novs = length(intersect(x, novels))) %>% 
-#   add_column(o = length(intersect(x, notin))) %>% 
-#   add_column(type = "new")
-# 
-# for (i in 2:nrow(a2)) {
-#   print(i)
-#   hx <- a3$height[i]
-#   cx <- a3$cluster[i]
-#   x <- time2_raw %>% filter(height == hx & cluster == cx) %>% pull(isolate)
-#   
-#   x1 <- list(x)
-#   
-#   if (x1 %in% ids) {
-#     id <- names(ids)[which(x1 %in% ids)] %>% 
-#       strsplit(., split = "-") %>% unlist() %>% as.integer()
-#     tmp <- tmp2 %>% filter(height == id[1] & cluster == id[2]) %>% 
-#       mutate(height = hx, cluster = cx, type = "old")
-#   }else {
-#     ids[paste0(hx, "-", cx)] <- x1
-#     tmp <- a3 %>% filter(height == hx & cluster == cx) %>% 
-#       add_column(fo = length(intersect(x, t1_h_cx$isolate))) %>% 
-#       add_column(novs = length(intersect(x, novels))) %>% 
-#       add_column(o = length(intersect(x, notin))) %>% 
-#       add_column(type = "new")
-#   }
-#   tmp2 <- bind_rows(tmp2, tmp)
-# }
-
-# tmp2 <- readRDS("tmp2.Rds")
 
 
 
