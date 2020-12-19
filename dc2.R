@@ -82,8 +82,14 @@ noChange <- function(ca, cb, hb) {
   return(stayed_the_same)
 }
 
+checkEachIsolate <- function(df, t2_comps) {
+  x <- df$composition %>% strsplit(split = ",") %>% unlist() %>% gsub(" ", "", .)
+  lapply(x, function(xi) grep(xi, t2_comps$composition)) %>% 
+    Reduce(intersect, .) %>% return()
+}
+
 trackClusters <- function(hx, t2_comps) {
-  pb <- txtProgressBar(min = 0, max = nrow(hx), initial = 0, style = 3)
+  pb <- txtProgressBar(min = 0, max = nrow(hx)+1, initial = 0, style = 3)
   k <- 0
   tmp <- lapply(1:nrow(hx), function(i) {
     # print(paste0(i, "/", nrow(hxallc)))
@@ -93,20 +99,22 @@ trackClusters <- function(hx, t2_comps) {
     # the TP1 composition data (for the height in hx)
     cxdata <- hx[i,]
     
-    # the indices of the TP2 composition dataset where clusters contain at least all 
-    # the isolates from the cxdata cluster
-    inds <- grep(cxdata$composition, t2_comps$composition)
-    kc <- t2_comps[inds,] %>% select(-composition, -id)
-    
-    if (nrow(kc) > 0) {
-      # merged the data for the single TP1 clusters and all corresponding TP2 clusters
-      cxdata %>% select(-composition, -id) %>% bind_cols(., kc) %>% return()  
+    if (nchar(cxdata$composition) < 2000) {
+      # the indices of the TP2 composition dataset where clusters contain at least all 
+      # the isolates from the cxdata cluster
+      inds <- grep(cxdata$composition, t2_comps$composition)
     }else {
-      cxdata %>% select(-composition, -id) %>% 
-        add_column(tp2_h = NA, tp2_cl = NA, tp2_cl_size = 0, num_novs = 0) %>% return()
+      inds <- checkEachIsolate(cxdata, t2_comps)
     }
     
+    if (length(inds) == 0) {inds <- checkEachIsolate(cxdata, t2_comps)}
+    
+    kc <- t2_comps[inds,] %>% select(-composition, -id)
+    
+    # merged the data for the single TP1 clusters and all corresponding TP2 clusters
+    cxdata %>% select(-composition, -id) %>% bind_cols(., kc) %>% return()  
   }) %>% bind_rows()
+  setTxtProgressBar(pb, k + 1)
   close(pb)
   return(tmp)
 }
@@ -192,7 +200,7 @@ alldata <- hb
 # --------------------------------------------------------------------------------------------------------
 # ALL OTHER HEIGHTS
 heights <- unique(t1_comps$tp1_h)
-for (h_after in heights[-1]) {
+for (h_after in heights[-1][-1]) {
   message(paste0("Collecting data for height ", h_after))
 
   aft_comps <- t1_comps %>% filter(tp1_h == h_after) %>% 
@@ -229,7 +237,7 @@ for (h_after in heights[-1]) {
       bind_rows(., ss) %>% 
       arrange(tp1_h, tp1_cl)
   }else {
-    hnew <- ss
+    hnew <- ss %>% arrange(tp1_h, tp1_cl)
   }
 
   print("part4")
@@ -241,6 +249,6 @@ for (h_after in heights[-1]) {
   saveRDS(alldata, "alldata.Rds")
   saveRDS(hb, "hb.Rds")
   saveRDS(h_before, "h_before.Rds")
-  saveRDS(befcomps, "bef_comps.Rds")
+  saveRDS(bef_comps, "bef_comps.Rds")
 }
 
