@@ -134,8 +134,6 @@ t2_coded <- "data/timepoint2_data.csv" %>% readData(., 2) %>%
 t1_comps <- t1_coded %>% rename(tp_h = tp1_h, tp_cl = tp1_cl) %>%
   arrange(tp_h, tp_cl, isolate) %>%
   compsSet(., 1)
-# saveRDS(t1_comps, "t1_comps.Rds")
-# t1_comps <- readRDS("t1_comps.Rds")
 
 t2_comps <- t2_coded %>% rename(tp_h = tp2_h, tp_cl = tp2_cl) %>%
   arrange(tp_h, tp_cl, isolate) %>%
@@ -149,14 +147,12 @@ counting_novels <- t2_coded %>%
 
 t2_comps <- t2_comps %>% left_join(., counting_novels, by = "id")
 t2_comps$num_novs[is.na(t2_comps$num_novs)] <- 0
-# saveRDS(t2_comps, "t2_comps.Rds")
-# t2_comps <- readRDS("t2_comps.Rds")
 
 # --------------------------------------------------------------------------------------------------------
 # --------------------------------------------------------------------------------------------------------
 # BASE CASE
 h_before <- 0
-print(paste0("Collecting data for height ", h_before))
+message(paste0("Collecting data for height ", h_before))
 cc <- t1_comps %>% filter(tp1_h == h_before) %>% 
   trackClusters(., t2_comps)
 
@@ -188,19 +184,17 @@ hb <- lapply(1:length(clx), function(i) {
   add_column(flagged_heights = 0)
 close(pb)  
 
+bef_comps <- t1_comps %>% filter(tp1_h == h_before) %>%
+  set_colnames(c("h_bef", "cl_bef", "id_bef", "comp", "size_bef"))
+
 alldata <- hb
 
 # --------------------------------------------------------------------------------------------------------
 # ALL OTHER HEIGHTS
 heights <- unique(t1_comps$tp1_h)
 for (h_after in heights[-1]) {
-  if (h_after == 242) {
-    stop("take a look at the ss cases with NA for tp2_h")
-  }
-  print(paste0("Collecting data for height ", h_after))
-  
-  bef_comps <- t1_comps %>% filter(tp1_h == h_before) %>% 
-    set_colnames(c("h_bef", "cl_bef", "id_bef", "comp", "size_bef"))
+  message(paste0("Collecting data for height ", h_after))
+
   aft_comps <- t1_comps %>% filter(tp1_h == h_after) %>% 
     set_colnames(c("h_aft", "cl_aft", "id_aft", "comp", "size_aft"))
 
@@ -211,14 +205,17 @@ for (h_after in heights[-1]) {
   cc <- aft_comps %>% 
     filter(!(id_aft %in% ss$id)) %>% 
     set_colnames(colnames(t1_comps)) %>% 
-    trackClusters(., t2_comps)
+    trackClusters(., t2_comps) %>% 
+    add_column(actual_growth_rate = NA, acc = NA, flag = NA)
   
   print("part3")
   if (nrow(cc) > 0) {
+    natp2h <- which(is.na(cc$tp2_h))
     cc$actual_growth_rate <- (cc$tp2_cl_size - cc$tp1_cl_size) / cc$tp1_cl_size
+    cc$actual_growth_rate[natp2h] <- cc$acc[natp2h] <- 0
+    
     cc$acc <- cc$num_novs / cc$actual_growth_rate
-    cc$acc[is.na(cc$acc)] <- 0
-    cc$flag <- NA
+    cc$acc[which(cc$actual_growth_rate == 0)] <- 0
     
     clx <- unique(cc$tp1_cl)
     hnew <- lapply(1:length(clx), function(i) {
@@ -235,8 +232,15 @@ for (h_after in heights[-1]) {
     hnew <- ss
   }
 
+  print("part4")
   alldata <- bind_rows(alldata, hnew)
   hb <- hnew
   h_before <- h_after
+  bef_comps <- aft_comps %>% set_colnames(c("h_bef", "cl_bef", "id_bef", "comp", "size_bef"))
+  
+  saveRDS(alldata, "alldata.Rds")
+  saveRDS(hb, "hb.Rds")
+  saveRDS(h_before, "h_before.Rds")
+  saveRDS(befcomps, "bef_comps.Rds")
 }
 
