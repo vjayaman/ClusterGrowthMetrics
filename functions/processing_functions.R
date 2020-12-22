@@ -44,19 +44,12 @@ trackClusters <- function(hdata, t2_comps) {
     if (any(is.na(t2set))) {message("\nNA values!\n")}
   }
   
-  if (nrow(t1set) > 0 & nrow(t2set) > 0) {
-    bind_rows(t1set, t2set) %>% return()
-  }else if (nrow(t1set) == 0 & nrow(t2set) > 0) {
-    t2set %>% return()
-  }else if (nrow(t1set) > 0 & nrow(t2set) == 0) {
-    t1set %>% return()
-  }else { # nrow(t1set) == 0 & nrow(t2set) == 0
-    message("No results!")
-  }
+  bind_rows(t1set, t2set) %>% arrange(tp1_h, tp1_cl) %>% return()
 }
 
 saveData <- function(dtype = 1, a = NULL, hbdata = NULL, hb = NULL, 
-                     cb = NULL, tp = NULL, tpdata = NULL) {
+                     cb = NULL, tp = NULL, tpdata = NULL, tmp = NULL, 
+                     h = NULL) {
   if (!dir.exists("outputs")) {
     dir.create("outputs/height_data", recursive = TRUE)
     dir.create("outputs/transit", recursive = TRUE)
@@ -69,6 +62,8 @@ saveData <- function(dtype = 1, a = NULL, hbdata = NULL, hb = NULL,
     saveRDS(cb, "outputs/transit/bef_comps.Rds")
   }else if (dtype == 2) {
     saveRDS(tpdata, paste0("t", tp, "_comps.Rds"))
+  }else if (dtype == 3) {
+    saveRDS(tmp, paste0("outputs/height_data/h", h, ".Rds"))
   }
   
   # if (dtype == 1) {

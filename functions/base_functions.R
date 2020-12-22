@@ -11,6 +11,10 @@ readData <- function(filename, file_number) {
   }
 }
 
+meltData <- function(dataset, id_val) {
+  melt(dataset, id = id_val) %>% as_tibble() %>% return()
+}
+
 factorToInt <- function(dataset, cname) {
   dataset %>% 
     mutate(across(all_of(cname), as.character)) %>% 
