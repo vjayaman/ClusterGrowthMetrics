@@ -24,11 +24,9 @@ trackClusters <- function(hdata, t2_comps) {
   
   hx <- hdata %>% filter(tp1_cl_size > 1)
   if (nrow(hx) > 0) { # at least one cluster with size larger than 1
-    pb <- txtProgressBar(min = 0, max = nrow(hx) + 1, initial = 0, style = 3)
-    k <- 0
+    pb <- txtProgressBar(min = 0, max = nrow(hx), initial = 0, style = 3)
     t2set <- lapply(1:nrow(hx), function(i) {
-      k <- k + i
-      setTxtProgressBar(pb, k)
+      setTxtProgressBar(pb, i)
       cluster_i <- hx[i,]
       
       if (nchar(cluster_i$composition) > 2000) {
@@ -42,7 +40,6 @@ trackClusters <- function(hdata, t2_comps) {
       }
       return(results_i)
     }) %>% bind_rows()
-    setTxtProgressBar(pb, k + 1)
     close(pb)
     if (any(is.na(t2set))) {message("\nNA values!\n")}
   }
