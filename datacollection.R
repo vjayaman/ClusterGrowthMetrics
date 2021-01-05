@@ -70,40 +70,19 @@ cc <- trackClusters(hdata, t2_comps)
 message("Flagging clusters")
 clx <- unique(cc$tp1_cl)
 fcb <- txtProgressBar(min = 0, max = length(clx), initial = 0, style = 3)
-fb <- lapply(1:length(clx), function(i) {
+hbdata <- lapply(1:length(clx), function(i) {
   setTxtProgressBar(fcb, i)
   cc %>% filter(tp1_cl == clx[i]) %>% 
     arrange(tp2_h, tp2_cl) %>% 
     mutate(flag = 1:nrow(.)) %>% return()
-}) %>% bind_rows()
+}) %>% bind_rows() %>% 
+  createID(., "tp1_h", "tp1_cl") %>% 
+  add_column(flagged_heights = 0)
 close(fcb)
-saveData(dtype=3, tmp=fb, h=0)
-
-# # now need to make metric calculations and extract the best result:
-# #     - the TP2 cluster that has the largest proportion of novels to growth rate
-# #     i.e. the "best" TP2 cluster where we look at clusters that absorbed lots of novels very quickly
-# # the actual growth of these clusters (TP2 size - TP1 size) / TP1 size
-# fb$actual_growth_rate <- (fb$tp2_cl_size - fb$tp1_cl_size) / fb$tp1_cl_size
-# # the number of novels in the TP2 cluster over the growth rate --> growth acceleration?
-# fb$acc <- fb$num_novs / fb$actual_growth_rate
-# fb$acc[is.na(fb$acc)] <- 0
-# 
-# 
-# accmet <- txtProgressBar(min = 0, max = length(clx), initial = 0, style = 3)
-# hbdata <- lapply(1:length(clx), function(i) {
-#   setTxtProgressBar(accmet, i)
-#   df <- fb %>% filter(tp1_cl == clx[i])
-#   df$acc[which(df$actual_growth_rate == 0)] <- 0
-#   df %>% arrange(-acc, tp2_h, tp2_cl) %>% slice(1) %>% return()
-# }) %>% bind_rows() %>% 
-#   createID(., "tp1_h", "tp1_cl") %>% 
-#   add_column(flagged_heights = 0)
-# close(accmet)  
+saveData(dtype=3, tmp=hbdata, h=0)
 
 bef_comps <- t1_comps %>% filter(tp1_h == h_before) %>%
   set_colnames(c("h_bef", "cl_bef", "id_bef", "comp", "size_bef"))
-# alldata <- hbdata
-# saveData(dtype=1, a=alldata, hbdata=hbdata, hb=h_before, cb=bef_comps)
 
 stopwatch <- rep(0,2) %>% set_names(c("start_time", "end_time"))
 stopwatch[1] <- Sys.time()
@@ -131,16 +110,10 @@ for (h_after in heights[-1]) {
   
   message("\nTracking clusters")
   cc <- trackClusters(hdata, t2_comps) %>% add_column(flag = NA)
-    # add_column(actual_growth_rate = NA, acc = NA, flag = NA)
-  
-  # bind_rows(cc, ss) %>% saveData(dtype=3, tmp=., h=h_after)
   
   # Part 3
   message("Flagging clusters...")
   if (nrow(cc) > 0) {
-    # cc$actual_growth_rate <- (cc$tp2_cl_size - cc$tp1_cl_size) / cc$tp1_cl_size
-    # cc$acc <- cc$num_novs / cc$actual_growth_rate
-    # cc$acc[which(cc$actual_growth_rate == 0)] <- 0
     
     clx <- unique(cc$tp1_cl)
 
@@ -157,32 +130,19 @@ for (h_after in heights[-1]) {
       add_column(flagged_heights = 0) %>% 
       bind_rows(., ss) %>% 
       arrange(tp1_h, tp1_cl)
-    # hnew <- lapply(1:length(clx), function(i) {
-    #   
-    #   df <- cc %>% filter(tp1_cl == clx[i]) %>% arrange(tp2_h, tp2_cl)
-    #   df$flag <- 1:nrow(df)
-    #   df$acc[which(df$actual_growth_rate == 0)] <- 0
-    #   df %>% arrange(-acc, tp2_h, tp2_cl) %>% slice(1) %>% return()
-    #   
-    # }) %>% bind_rows() %>% 
-    #   createID(., "tp1_h", "tp1_cl") %>% 
-    #   add_column(flagged_heights = 0) %>% 
-    #   bind_rows(., ss) %>% 
-    #   arrange(tp1_h, tp1_cl)
+    
   }else {
     hnew <- ss %>% arrange(tp1_h, tp1_cl)
   }
   saveData(dtype=3, tmp=hnew, h=h_after)
   
   # Part 4 - prepping data for next iteration
-  # alldata <- bind_rows(alldata, hnew)
   hbdata <- hnew
   h_before <- h_after
   bef_comps <- aft_comps %>% set_colnames(c("h_bef", "cl_bef", "id_bef", "comp", "size_bef"))
   stopwatch[2] <- Sys.time()
-  saveData(dtype=1, hbdata=hbdata, hb=h_before, cb=bef_comps)
 }
-# restarted process at 2:50
+# restarted process at 4:18
 # restarted process at 8:22, starting height 5 at 8:42, height 11 at 8:47, height 428 at 9:18, height 630 at 9:29, 
 # height 893 at 9:50, finished at 9:53
 # AN HOUR AND A HALF!!!
