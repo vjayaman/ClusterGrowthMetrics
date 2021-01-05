@@ -7,7 +7,7 @@ message("Going through the adaptive threshold development step.")
 # Currently being used to model synthetic data, and what we might expect significant
 # size change to look like.
 
-message("Running local regression steps for adaptive threshold development")
+message("Running local regression steps for adaptive threshold development.")
 
 x <- c(1, 25, 50, 100, 150)
 y <- c(300, 150, 75, 30, 15)
@@ -24,7 +24,6 @@ lm_df <- tibble(x, y, smoothed1, smoothed5) %>%
   meltData(., "x") %>% set_colnames(c("Cluster size", "Function", "Growth"))
 
 message("Comparing models in the adaptive threshold step.")
-# setTxtProgressBar(pb, 13)
 
 # The model selection step, and using it to determine what the adaptive threshold
 # function values would be for each input of initial cluster size. Anything that

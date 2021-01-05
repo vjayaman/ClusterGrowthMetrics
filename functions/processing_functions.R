@@ -59,10 +59,16 @@ readData <- function(dtype = 1, h) {
 
 saveData <- function(dtype = 1, a = NULL, hbdata = NULL, hb = NULL, 
                      cb = NULL, tp = NULL, tpdata = NULL, tmp = NULL, 
-                     h = NULL, oh = NULL, df = NULL, res = NULL) {
+                     h = NULL, oh = NULL, df = NULL, res = NULL, sw = NULL) {
   if (!dir.exists("outputs")) {
     dir.create("outputs/height_data", recursive = TRUE)
+  }
+  
+  if (!dir.exists("outputs/with_growth_rate")) {
     dir.create("outputs/with_growth_rate", recursive = TRUE)
+  }
+  
+  if (!dir.exists("outputs/best_growth_per_clust")) {
     dir.create("outputs/best_growth_per_clust", recursive = TRUE)
   }
   
@@ -76,25 +82,10 @@ saveData <- function(dtype = 1, a = NULL, hbdata = NULL, hb = NULL,
     saveRDS(df, paste0("outputs/best_growth_per_clust/h", h, ".Rds"))
   }else if (dtype == 6) {
     saveRDS(res, "outputs/results_summary.Rds")
+  }else if (dtype == 7) {
+    saveRDS(sw, "outputs/stopwatch.Rds")
   }
-  
-  # if (dtype == 1) {
-  #   paste0("outputs/height_data/h_", h, ".Rds") %>% saveRDS(sh, .)
-  # }else if (dtype == 2) {
-  #   saveRDS(sw, "outputs/stopwatch.Rds")
-  #   message("\nSaved stopwatch data.")
-  # }else if (dtype == 3) {
-  #   mergeResults("outputs/height_data/") %>% saveRDS(., "outputs/results.Rds")
-  #   message("\nSaved transitory results data - now need to run preparingmetrics.R")
-  # }else if (dtype == 4) {
-  #   write.csv(m, "outputs/all_clusters_table.csv", row.names = FALSE)
-  #   write.csv(m[1:10,], "outputs/first_ten_rows.csv", row.names = FALSE)
-  #   message("\nSaved metrics to outputs folder.")
-  # }else if (dtype == 6) {
-  #   write.csv(flagged, "outputs/flagged_cases_w_isolates.csv", row.names = FALSE)
-  # }else if (dtype == 7) {
   #   write.csv(flagged, "outputs/flagged_cases_just_clusters.csv", row.names = FALSE)
-  # }
 }
 # 
 # clusterIDS <- function(dataset, dtype = 2) {
