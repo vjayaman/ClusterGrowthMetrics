@@ -47,23 +47,35 @@ trackClusters <- function(hdata, t2_comps) {
   bind_rows(t1set, t2set) %>% arrange(tp1_h, tp1_cl) %>% return()
 }
 
+readData <- function(dtype = 1, h) {
+  if (dtype == 3) {
+    readRDS(paste0("outputs/height_data/h", h, ".Rds")) %>% return()
+  }else if (dtype == 4) {
+    readRDS(paste0("outputs/with_growth_rate/h", h, ".Rds")) %>% return()
+  }else if (dtype == 5) {
+    readRDS(paste0("outputs/best_growth_per_clust/h", h, ".Rds")) %>% return()
+  }
+}
+
 saveData <- function(dtype = 1, a = NULL, hbdata = NULL, hb = NULL, 
                      cb = NULL, tp = NULL, tpdata = NULL, tmp = NULL, 
-                     h = NULL) {
+                     h = NULL, oh = NULL, df = NULL, res = NULL) {
   if (!dir.exists("outputs")) {
     dir.create("outputs/height_data", recursive = TRUE)
-    dir.create("outputs/transit", recursive = TRUE)
+    dir.create("outputs/with_growth_rate", recursive = TRUE)
+    dir.create("outputs/best_growth_per_clust", recursive = TRUE)
   }
   
-  if (dtype == 1) {
-    saveRDS(a, "outputs/transit/alldata.Rds")
-    saveRDS(hbdata, "outputs/transit/hbdata.Rds")
-    saveRDS(hb, "outputs/transit/h_before.Rds")
-    saveRDS(cb, "outputs/transit/bef_comps.Rds")
-  }else if (dtype == 2) {
+  if (dtype == 2) {
     saveRDS(tpdata, paste0("t", tp, "_comps.Rds"))
   }else if (dtype == 3) {
     saveRDS(tmp, paste0("outputs/height_data/h", h, ".Rds"))
+  }else if (dtype == 4) {
+    saveRDS(oh, paste0("outputs/with_growth_rate/h", h, ".Rds"))
+  }else if (dtype == 5) {
+    saveRDS(df, paste0("outputs/best_growth_per_clust/h", h, ".Rds"))
+  }else if (dtype == 6) {
+    saveRDS(res, "outputs/results_summary.Rds")
   }
   
   # if (dtype == 1) {

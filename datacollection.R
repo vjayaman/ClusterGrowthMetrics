@@ -28,10 +28,10 @@ cat(paste0("\nPreparing data for processing (see log file for details)\n"))
 # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
 message("\nLoading datafiles...")
 # the coded datasets (where the isolates are now replaced by positive integers)
-# t1_coded <- "data/timepoint1_data.csv" %>% readData(., 1) %>% codeIsolates(., "tp1")
-# t2_coded <- "data/timepoint2_data.csv" %>% readData(., 2) %>% codeIsolates(., "tp2")
-t1_coded <- input_args[1] %>% readData(., 1) %>% codeIsolates(., "tp1")
-t2_coded <- input_args[2] %>% readData(., 2) %>% codeIsolates(., "tp2")
+# t1_coded <- "data/timepoint1_data.csv" %>% readBaseData(., 1) %>% codeIsolates(., "tp1")
+# t2_coded <- "data/timepoint2_data.csv" %>% readBaseData(., 2) %>% codeIsolates(., "tp2")
+t1_coded <- input_args[1] %>% readBaseData(., 1) %>% codeIsolates(., "tp1")
+t2_coded <- input_args[2] %>% readBaseData(., 2) %>% codeIsolates(., "tp2")
 
 message("Successfully read in datafiles")
 

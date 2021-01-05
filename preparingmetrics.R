@@ -21,10 +21,10 @@ cat(paste0("\nPreparing data for processing (see log file for details)\n"))
 message("Loading datafiles")
 # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
 # the raw datasets, no filtering or other changes made
-# time1_raw <- "data/timepoint1_data.csv" %>% readData(., 1)
-# time2_raw <- "data/timepoint2_data.csv" %>% readData(., 1)
-time1_raw <- input_args[1] %>% readData(., 1)
-time2_raw <- input_args[2] %>% readData(., 2)
+# time1_raw <- "data/timepoint1_data.csv" %>% readBaseData(., 1)
+# time2_raw <- "data/timepoint2_data.csv" %>% readBaseData(., 1)
+time1_raw <- input_args[1] %>% readBaseData(., 1)
+time2_raw <- input_args[2] %>% readBaseData(., 2)
 message("Successfully read in datafiles")
 
 

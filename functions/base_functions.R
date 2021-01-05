@@ -2,7 +2,7 @@ x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", "stringr
 lapply(x, require, character.only = TRUE)
 
 # given the defining filename, read in the data (need the full path from your working directory)
-readData <- function(filename, file_number) {
+readBaseData <- function(filename, file_number) {
   if (is.na(filename)) {
     stop(paste0("Time point ", file_number, " dataset not found."))
   }else {
