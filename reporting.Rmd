@@ -1,0 +1,117 @@
+---
+title: "Overview"
+output: 
+  html_document:
+    code_fold: show
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+source("functions/base_functions.R")
+source("functions/processing_functions.R")
+library(ggplot2)
+library(plotly)
+library(DT)
+library(flexdashboard)
+```
+
+
+### Chart A1
+
+```{r}
+metrics <- readRDS("outputs/results_summary.Rds") %>% 
+  set_colnames(c("tp1_h", "tp1_cl", "tp1_cl_size", "tp2_h", "tp2_cl", "tp2_cl_size", "num_novels", 
+                 "flag", "id", "flagged_heights", "prop_inc", "acc", "adap_thresh", "fold_change")) %>% 
+  arrange(-fold_change)
+time1_raw <- "data/timepoint1_data.csv" %>% readBaseData(., 1)
+time2_raw <- "data/timepoint2_data.csv" %>% readBaseData(., 2)
+```
+
+```{r}
+heights <- colnames(time1_raw)[-1]
+renderUI({
+  selectInput(inputId = "sel_height", label = "Select height to analyze", choices = heights, selected = heights[10])
+})
+```
+
+```{r}
+renderDataTable({
+  req(input$sel_height)
+  h <- input$sel_height
+  print(paste0("outputs/with_growth_rate/h", h, ".Rds"))
+  b1 <- readRDS(paste0("outputs/with_growth_rate/h", h, ".Rds"))
+  b1$id <- paste0("T1_h", b1$tp1_h, "_cl", b1$tp1_cl)
+  
+  DT::datatable(b1, caption = "Sample rows of clusters and sizing",
+                fillContainer = TRUE, filter = "top", rownames = FALSE,
+                options = list(pageLength = 1000, dom = "ti", scrollY = "500px",
+                               columnDefs = list(list(className = "dt-center", targets = 1:3))))  
+}, server = TRUE)
+```
+
+```{r}
+renderUI({
+  req(input$sel_height)
+  
+  b1 <- readRDS(paste0("outputs/with_growth_rate/h", input$sel_height, ".Rds"))
+  b1$id <- paste0("T1_h", b1$tp1_h, "_cl", b1$tp1_cl)
+  tp1_clusters <- b1$id %>% unique()
+  
+  selectInput(inputId = "sel_cluster", label = "Select cluster to analyze", choices = tp1_clusters)
+})
+```
+
+```{r}
+renderPlot({
+  req(input$sel_cluster)
+  
+  b1 <- readRDS(paste0("outputs/with_growth_rate/h", input$sel_height, ".Rds"))
+  b1$id <- paste0("T1_h", b1$tp1_h, "_cl", b1$tp1_cl)
+  onecluster <- b1 %>% filter(id == input$sel_cluster)
+  t1_vals <- onecluster %>% select(tp1_h, tp1_cl) %>% unique()
+  top_pt <- onecluster[which.max(onecluster$acc),]
+
+  g1 <- ggplot(onecluster, aes(x = tp2_h, y = acc)) + geom_point() + 
+    geom_point(data = top_pt, aes(x = tp2_h, y = acc), color = "red", size = 3) + 
+    xlab("Time point 2 thresholds") + ylab("Growth 'acceleration'") + 
+    ggtitle(paste0("Growth of ", input$sel_cluster, " to time point 2"))
+  g1
+})
+```
+
+### Chart A2
+
+```{r}
+renderPlotly({
+  req(input$sel_height)
+  # the most cluster growth for each TP1 cluster, at threshold h
+  h <- input$sel_height
+  c1 <- readRDS(paste0("outputs/best_growth_per_clust/h", h, ".Rds"))
+  g2 <- ggplot(c1, aes(x = tp1_cl, y = acc)) + geom_point()
+  ggplotly(g2)
+})
+```
+
+### Chart A1
+
+```{r}
+
+```
+
+### Chart A2
+
+```{r}
+
+```
+
+### Chart B
+
+```{r}
+
+```
+
+### Chart C
+
+```{r}
+
+```
