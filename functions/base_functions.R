@@ -42,18 +42,18 @@ countRows <- function(df, newname) {
   df2 %>% return()
 }
 
-createID <- function(df, c1, c2) {
+createID <- function(df, c1, c2, indicate_progress) {
   df %>% add_column(id = paste0(pull(df, c1), "-", pull(df, c2))) %>% return()
 }
 
-compsSet <- function(tp_coded, tp) {
+compsSet <- function(tp_coded, tp, indicate_progress) {
   cb <- tp_coded %>% arrange(tp_h, tp_cl, isolate) %>% 
     set_colnames(c("isolate", "tp_h", "tp_cl", "id"))
   a1 <- cb$tp_h %>% unique()
   
-  pb <- txtProgressBar(min = 0, max = length(a1), initial = 0, style = 3)
+  if (indicate_progress) {pb <- txtProgressBar(min = 0, max = length(a1), initial = 0, style = 3)}
   tmp <- lapply(1:length(a1), function(i) {
-    setTxtProgressBar(pb, i)
+    if (indicate_progress) {setTxtProgressBar(pb, i)}
     x <- cb %>% filter(tp_h == a1[i]) %>% arrange(isolate)
     if (length(unique(x$id)) > 1) {
       a2 <- aggregate(isolate ~ id, data = x, FUN = toString) %>% as_tibble() %>% 
@@ -67,7 +67,7 @@ compsSet <- function(tp_coded, tp) {
                size = length(x$isolate)) %>% return()
     }
   }) %>% bind_rows()
-  close(pb)
+  if (indicate_progress) {close(pb)}
   
   tpcomps <- str_split_fixed(tmp$id, "-", 2) %>% 
     set_colnames(c("tp_h", "tp_cl")) %>% 
@@ -120,6 +120,13 @@ rmIDComp <- function(df) {
   df %>% select(-id, -composition) %>% return()
 }
 
+outputDetails <- function(msg, newcat = FALSE) {
+  cat(msg)
+  if (newcat) {
+    cat("\n")
+  }
+  message(msg)
+}
 
 # # DATA HANDLING -----------------------------------------------------------------------------------------------------
 # 
@@ -146,11 +153,6 @@ rmIDComp <- function(df) {
 #   tracked_clusters %>%
 #     mutate(across(tp2_h, as.integer)) %>% return()
 # }
-# 
-# meltData <- function(dataset, id_val) {
-#   melt(dataset, id = id_val) %>% as_tibble() %>% return()
-# }
-# 
 # 
 # # these are the clusters that change in composition from h0 to h1
 # # then for h1 at TP2, we only need to find the originating TP1 clusters for these ones, 
@@ -279,13 +281,18 @@ rmIDComp <- function(df) {
 #   }
 # }
 # 
-# timeTaken <- function(pt, sw) {
-#   t1 <- (sw[['end_time']] - sw[['start_time']])/60/60
-#   t2 <- abs(t1 - trunc(t1))*60
-#   t3 <- abs(t2 - trunc(t2))*60
-#   message(paste0("The ", pt, " process took ", trunc(t1), " hours, ", 
-#                  trunc(t2), " minutes, and ", trunc(t3), " seconds.\n"))
-# }
+timeTaken <- function(pt, sw) {
+  t1 <- (sw[['end_time']] - sw[['start_time']])/60/60
+  t2 <- abs(t1 - trunc(t1))*60
+  t3 <- abs(t2 - trunc(t2))*60
+  
+  word1 <- if_else(trunc(t1) == 1, "hour", "hours")
+  word2 <- if_else(trunc(t2) == 1, "minute", "minutes")
+  word3 <- if_else(trunc(t3) == 1, "second", "seconds")
+  
+  paste0("  The ", pt, " process took ", trunc(t1), " ", word1, ", ", 
+         trunc(t2), " ", word2, " and ", trunc(t3), " ", word3, ".\n") %>% return()
+}
 # 
 # externalProgressBar <- function(x, i, msg) {
 #   setTkProgressBar(x, i, title = paste0("Progress of metrics prep: ", round(i/total*100, 0), "% done"), label = msg)

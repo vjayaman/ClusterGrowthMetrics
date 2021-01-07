@@ -1,5 +1,5 @@
 
-trackClusters <- function(hdata, t2_comps) {
+trackClusters <- function(hdata, t2_comps, t2names, t2_coded, indicate_progress) {
   # FOUND A PROBLEM WITH USING GREP!
   #   - if you're looking for composition 1, it considers 10, 107, 1247, ... as hits
   #   - need to include the commas in our actual checks
@@ -24,9 +24,11 @@ trackClusters <- function(hdata, t2_comps) {
   
   hx <- hdata %>% filter(tp1_cl_size > 1)
   if (nrow(hx) > 0) { # at least one cluster with size larger than 1
-    pb <- txtProgressBar(min = 0, max = nrow(hx), initial = 0, style = 3)
+    if (indicate_progress) {
+      tc <- txtProgressBar(min = 0, max = nrow(hx), initial = 0, style = 3)  
+    }
     t2set <- lapply(1:nrow(hx), function(i) {
-      setTxtProgressBar(pb, i)
+      if (indicate_progress) {setTxtProgressBar(tc, i)}
       cluster_i <- hx[i,]
       
       if (nchar(cluster_i$composition) > 2000) {
@@ -38,9 +40,16 @@ trackClusters <- function(hdata, t2_comps) {
           results_i <- checkEachIsolate(cluster_i, t2_coded, t2_comps)
         }
       }
+      
+      # the process is being cut off partway
+      # not tracking to all heights (e.g. TP2 height 1634 has not been found)
+      if (!(last(t2names) %in% results_i$tp2_h)) {
+        results_i <- checkEachIsolate(cluster_i, t2_coded, t2_comps)
+      }
+      
       return(results_i)
     }) %>% bind_rows()
-    close(pb)
+    if (indicate_progress) {close(tc)}
     if (any(is.na(t2set))) {message("\nNA values!\n")}
   }
   
@@ -85,9 +94,19 @@ saveData <- function(dtype = 1, a = NULL, hbdata = NULL, hb = NULL,
   }else if (dtype == 7) {
     saveRDS(sw, "outputs/stopwatch.Rds")
   }
-  #   write.csv(flagged, "outputs/flagged_cases_just_clusters.csv", row.names = FALSE)
 }
-# 
+
+accData <- function(h) {
+  oneheight <- readData(dtype = 3, h = h)
+  # growth = (change in cluster size) / (original cluster size)
+  oneheight$actual_growth_rate <- (oneheight$tp2_cl_size - oneheight$tp1_cl_size) / oneheight$tp1_cl_size
+  # growth acceleration? = (number of novel isolates) / (growth rate)
+  oneheight$b_ov_growth <- oneheight$num_novs / oneheight$actual_growth_rate
+  oneheight$b_ov_growth[is.na(oneheight$b_ov_growth)] <- 0
+  saveData(dtype = 4, oh = oneheight, h = h)
+}
+
+
 # clusterIDS <- function(dataset, dtype = 2) {
 #   df <- dataset %>% 
 #     meltData(., "isolate") %>% 

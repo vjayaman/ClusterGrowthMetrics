@@ -19,10 +19,12 @@ library(flexdashboard)
 ### Chart A1
 
 ```{r}
-metrics <- readRDS("outputs/results_summary.Rds") %>% 
-  set_colnames(c("tp1_h", "tp1_cl", "tp1_cl_size", "tp2_h", "tp2_cl", "tp2_cl_size", "num_novels", 
-                 "flag", "id", "flagged_heights", "prop_inc", "acc", "adap_thresh", "fold_change")) %>% 
-  arrange(-fold_change)
+metrics <- readRDS("outputs/results_summary.Rds")
+propnames <- colnames(metrics)
+
+metrics <- metrics %>% set_colnames(c("tp1_h", "tp1_cl", "tp1_cl_size", "tp2_h", "tp2_cl", 
+                                      "tp2_cl_size", "num_novels", "flag", "id", "flagged_heights", 
+                                      "prop_inc", "acc", "adap_thresh", "fold_change")) %>% arrange(-fold_change)
 time1_raw <- "data/timepoint1_data.csv" %>% readBaseData(., 1)
 time2_raw <- "data/timepoint2_data.csv" %>% readBaseData(., 2)
 ```
@@ -38,14 +40,44 @@ renderUI({
 renderDataTable({
   req(input$sel_height)
   h <- input$sel_height
-  print(paste0("outputs/with_growth_rate/h", h, ".Rds"))
-  b1 <- readRDS(paste0("outputs/with_growth_rate/h", h, ".Rds"))
+  b1 <- readRDS(paste0("outputs/with_growth_rate//h", h, ".Rds"))
   b1$id <- paste0("T1_h", b1$tp1_h, "_cl", b1$tp1_cl)
   
-  DT::datatable(b1, caption = "Sample rows of clusters and sizing",
-                fillContainer = TRUE, filter = "top", rownames = FALSE,
-                options = list(pageLength = 1000, dom = "ti", scrollY = "500px",
-                               columnDefs = list(list(className = "dt-center", targets = 1:3))))  
+  
+  DT::datatable(b1, caption = paste0("Growth rates of all TP1_h", h, " clusters at all TP2 heights"), 
+                fillContainer = TRUE, filter = "top", rownames = TRUE, 
+                options = list(pageLength = 1635, dom = "tipf", scrollY = "500px", 
+                               columnDefs = list(list(className = "dt-center", targets = 1:5))))
+}, server = TRUE)
+```
+
+```{r}
+renderDataTable({
+  req(input$sel_height)
+  h <- input$sel_height
+  c1 <- readRDS(paste0("outputs/best_growth_per_clust/h", h, ".Rds"))
+  c1$id <- paste0("T1_h", c1$tp1_h, "_cl", c1$tp1_cl)
+  
+  DT::datatable(c1, caption = paste0("The TP1-TP2 cluster pairs with the 'most' growth, for all TP1_h", h, " clusters"), 
+                fillContainer = TRUE, filter = "top", rownames = TRUE, 
+                options = list(pageLength = nrow(c1), dom = "tipf", scrollY = "500px", 
+                               columnDefs = list(list(className = "dt-center", targets = 1:5))))
+}, server = TRUE)
+```
+
+```{r}
+renderDataTable({
+  req(input$sel_height)
+  h <- input$sel_height
+  print(paste0("outputs/with_growth_rate/h", h, ".Rds"))
+  b1 <- readRDS(paste0("outputs/with_growth_rate//h", h, ".Rds"))
+  b1$id <- paste0("T1_h", b1$tp1_h, "_cl", b1$tp1_cl)
+  
+  
+  DT::datatable(b1, caption = "Growth rates of this TP1 cluster at all TP2 heights", 
+                fillContainer = TRUE, filter = "top", rownames = TRUE, 
+                options = list(pageLength = 1635, dom = "tipf", scrollY = "500px", 
+                               columnDefs = list(list(className = "dt-center", targets = 1:5))))
 }, server = TRUE)
 ```
 
