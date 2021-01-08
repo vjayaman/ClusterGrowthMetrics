@@ -7,6 +7,7 @@ sink(msg, type="message")
 
 suppressWarnings(suppressPackageStartupMessages(source("functions/base_functions.R")))
 source("functions/processing_functions.R")
+source("model_pred.R")
 
 stopwatch <- rep(0,6) %>% set_names(c("start_time", "t2", "t3", "t4", "end_time"))
 stopwatch[1] <- Sys.time()
@@ -37,11 +38,14 @@ outputDetails(paste0("\nPART 2 OF 4: Adding growth columns ",
 
 stopwatch[2] <- Sys.time()
 message("Adding growth columns to the height data\nCheck the 'outputs/with_growth_rate/' directory for saved data")
+# actual_growth_rate = (change in cluster size) / (original cluster size)
+# b_ov_growth = (number of novel isolates) / (growth rate)
 m <- length(allheights)
-p2 <- txtProgressBar(min = 0, max = length(allheights), initial = 0, style = 3)
+p2 <- txtProgressBar(min = 0, max = m, initial = 0, style = 3)
 a <- lapply(1:m, function(i) {
   setTxtProgressBar(p2, i)
-  accData(allheights[i])
+  df <- accData(allheights[i])
+  saveData(dtype = 4, oh = df, h = allheights[i])
 })
 close(p2)
 
@@ -69,7 +73,6 @@ outputDetails(paste0("\nPART 4 OF 4: Comparing change in cluster size to the pre
                      paste0(rep(".", 30), collapse = ""), sep = ""), newcat = TRUE)
 
 stopwatch[4] <- Sys.time()
-source("model_pred.R")
 
 p4 <- txtProgressBar(min = 0, max = length(allheights), initial = 0, style = 3)
 saving_results <- lapply(1:length(allheights), function(i) {

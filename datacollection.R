@@ -32,8 +32,10 @@ outputDetails(paste0("\nPART 1 OF 3: Data processing ", paste0(rep(".", 66), col
 
 # the coded datasets (where the isolates are now replaced by positive integers)
 # t1_coded <- "data/timepoint1_data.csv" %>% readBaseData(., 1) %>% codeIsolates(., "tp1")
+# t2_coded <- "data/timepoint2_data.csv" %>% readBaseData(., 2) %>% codeIsolates(., "tp2")
 t1_coded <- input_args[1] %>% readBaseData(., 1) %>% codeIsolates(., "tp1")
 t2_coded <- input_args[2] %>% readBaseData(., 2) %>% codeIsolates(., "tp2")
+
 t2_colnames <- t2_coded$tp2_h %>% unique() %>% sort()
 message("  Successfully read in datafiles")
 
@@ -41,7 +43,7 @@ message("  Successfully read in datafiles")
 outputDetails("  Processing time point 1 (TP1) clusters for easier data handling", newcat = TRUE)
 t1_comps <- t1_coded %>% 
   rename(tp_h = tp1_h, tp_cl = tp1_cl) %>% 
-  compsSet(., 1, indicate_progress = TRUE)
+  compsSet(., "TP1", indicate_progress = TRUE)
 
 outputDetails("  Collecting and counting novel isolates in each TP2 cluster...", newcat = TRUE)
 novels <- setdiff(t2_coded$isolate, t1_coded$isolate)
@@ -53,7 +55,7 @@ counting_novels <- t2_coded %>%
 outputDetails("  Processing time point 2 (TP2) clusters for easier data handling...", newcat = TRUE)
 t2_comps <- t2_coded %>% 
   rename(tp_h = tp2_h, tp_cl = tp2_cl) %>%
-  compsSet(., 2, indicate_progress = TRUE) %>% 
+  compsSet(., "TP2", indicate_progress = TRUE) %>% 
   left_join(., counting_novels, by = "id")
 t2_comps$num_novs[is.na(t2_comps$num_novs)] <- 0
 
@@ -68,6 +70,7 @@ outputDetails("  Collecting height data for base case, height 0...", newcat = TR
 outputDetails("  Tracking clusters", newcat = TRUE)
 h_before <- unique(t1_coded$tp1_h)[1]
 hdata <- t1_comps %>% filter(tp1_h == h_before) %>% arrange(tp1_h, tp1_cl)
+
 cc <- trackClusters(hdata, t2_comps, t2_colnames, t2_coded, indicate_progress = TRUE)
 
 # note: the way these are flagged, we can see how many TP2 clusters were formed from the
@@ -83,7 +86,7 @@ hbdata <- lapply(1:length(clx), function(i) {
     arrange(tp2_h, tp2_cl) %>%
     mutate(flag = 1:nrow(.)) %>% return()
 }) %>% bind_rows() %>%
-  createID(., "tp1_h", "tp1_cl") %>%
+  createID(., "tp1", "tp1_h", "tp1_cl") %>%
   add_column(flagged_heights = 0)
 close(fcb0)
 saveData(dtype=3, tmp=hbdata, h=0)
@@ -134,8 +137,8 @@ for (j in 1:length(heights[-1])) {
         arrange(tp2_h, tp2_cl) %>%
         mutate(flag = 1:nrow(.)) %>% return()
     }) %>% bind_rows()
-
-    hnew <- fb %>% createID(., "tp1_h", "tp1_cl") %>%
+    
+    hnew <- fb %>% createID(., "tp1", "tp1_h", "tp1_cl") %>%
       add_column(flagged_heights = 0) %>%
       bind_rows(., ss) %>%
       arrange(tp1_h, tp1_cl)

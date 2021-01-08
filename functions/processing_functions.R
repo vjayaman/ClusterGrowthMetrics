@@ -103,7 +103,7 @@ accData <- function(h) {
   # growth acceleration? = (number of novel isolates) / (growth rate)
   oneheight$b_ov_growth <- oneheight$num_novs / oneheight$actual_growth_rate
   oneheight$b_ov_growth[is.na(oneheight$b_ov_growth)] <- 0
-  saveData(dtype = 4, oh = oneheight, h = h)
+  return(oneheight)
 }
 
 

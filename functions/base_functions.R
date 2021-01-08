@@ -29,7 +29,7 @@ codeIsolates <- function(df, tpx) {
     melt(id = "isolate") %>% as_tibble() %>% 
     set_colnames(c("isolate", hx, cx)) %>% 
     factorToInt(hx) %>% 
-    createID(., hx, cx)
+    createID(., tpx, hx, cx)
   df2$isolate <- paste0("-", df2$isolate, "-")
   return(df2)
 }
@@ -42,9 +42,15 @@ countRows <- function(df, newname) {
   df2 %>% return()
 }
 
-createID <- function(df, c1, c2, indicate_progress) {
-  df %>% add_column(id = paste0(pull(df, c1), "-", pull(df, c2))) %>% return()
+createID <- function(df, c0, c1, c2) {
+  df %>% add_column(id = paste0(toupper(c0), "_h", pull(df, c1), "_c", pull(df, c2))) %>% return()
+  # df %>% add_column(id = paste0(pull(df, c1), "-", pull(df, c2))) %>% return()
 }
+
+# tp_coded <- t1_coded %>% 
+#   rename(tp_h = tp1_h, tp_cl = tp1_cl)
+# tp <- "tp1" %>% toupper()
+# indicate_progress <- FALSE
 
 compsSet <- function(tp_coded, tp, indicate_progress) {
   cb <- tp_coded %>% arrange(tp_h, tp_cl, isolate) %>% 
@@ -54,8 +60,10 @@ compsSet <- function(tp_coded, tp, indicate_progress) {
   if (indicate_progress) {pb <- txtProgressBar(min = 0, max = length(a1), initial = 0, style = 3)}
   tmp <- lapply(1:length(a1), function(i) {
     if (indicate_progress) {setTxtProgressBar(pb, i)}
+    # for height i, we first collect the data from tp_coded, then arrange by isolate
     x <- cb %>% filter(tp_h == a1[i]) %>% arrange(isolate)
-    if (length(unique(x$id)) > 1) {
+    num_clusters <- x$id %>% unique() %>% length()
+    if (num_clusters > 1) {
       a2 <- aggregate(isolate ~ id, data = x, FUN = toString) %>% as_tibble() %>% 
         set_colnames(c("id", "composition"))
       a3 <- aggregate(isolate ~ id, data = x, FUN = length) %>% as_tibble() %>% 
@@ -69,13 +77,15 @@ compsSet <- function(tp_coded, tp, indicate_progress) {
   }) %>% bind_rows()
   if (indicate_progress) {close(pb)}
   
-  tpcomps <- str_split_fixed(tmp$id, "-", 2) %>% 
+  tpcomps <- paste0(c(tp, "_h", "_"), collapse = "|") %>% 
+    gsub(., "", tmp$id) %>% 
+    str_split_fixed(., "c", 2) %>% 
     set_colnames(c("tp_h", "tp_cl")) %>% 
     as_tibble() %>% 
     bind_cols(., tmp) %>% 
     mutate(across(c(tp_h, tp_cl), as.integer))
   
-  if (tp == 1) {
+  if (tp == "TP1") {
     tpcomps %>% rename(tp1_h = tp_h, tp1_cl = tp_cl, tp1_cl_size = size) %>% return()
   }else {
     tpcomps %>% rename(tp2_h = tp_h, tp2_cl = tp_cl, tp2_cl_size = size) %>% return()
