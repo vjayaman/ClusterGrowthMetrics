@@ -1,7 +1,7 @@
 ClusterGrowthMetrics
 =====================================
 
-Generates metrics for analyzing cluster growth across two time points, using isolates and cluster assignments at a series of heights at each time point. 
+Generates metrics for analyzing cluster growth across two time points, using isolates and cluster assignments at a series of heights at each time point. We start with a threshold in the time point 1 dataset, then track each cluster to find the "first" cluster at time point 2 that contains all of its isolates.
 
 Prerequisites
 -------------
