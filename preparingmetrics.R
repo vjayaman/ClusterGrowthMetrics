@@ -28,8 +28,12 @@ message("Preparing data for processing; loading datafiles")
 # the raw datasets, no filtering or other changes made
 time1_raw <- input_args[1] %>% readBaseData(., 1)
 time2_raw <- input_args[2] %>% readBaseData(., 2)
+# time1_raw <- "data/timepoint1_data.csv" %>% readBaseData(., 1)
+# time2_raw <- "data/timepoint2_data.csv" %>% readBaseData(., 2)
+
 message("Successfully read in datafiles")
 
+# allheights <- colnames(time1_raw)[2:600]
 allheights <- colnames(time1_raw)[-1]
 
 # this part takes 15 minutes for the 910 heights

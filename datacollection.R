@@ -133,9 +133,9 @@ for (j in 1:length(heights[-1])) {
     clx <- unique(cc$tp1_cl)
 
     fb <- lapply(1:length(clx), function(i) {
-      cc %>% filter(tp1_cl == clx[i]) %>%
-        arrange(tp2_h, tp2_cl) %>%
-        mutate(flag = 1:nrow(.)) %>% return()
+      cc1 <- cc %>% filter(tp1_cl == clx[i]) %>%
+        arrange(tp2_h, tp2_cl)
+      cc2 <- cc1 %>% mutate(flag = (1:nrow(cc1))-1) %>% return()
     }) %>% bind_rows()
     
     hnew <- fb %>% createID(., "tp1", "tp1_h", "tp1_cl") %>%
