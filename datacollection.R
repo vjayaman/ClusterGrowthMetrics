@@ -1,5 +1,7 @@
 #! /usr/bin/env Rscript
 input_args = commandArgs(trailingOnly = TRUE)
+# Note: a line of stars (********) will be placed after verified complicated operations, 
+# involved statements that do what they are expected to do, and this has been checked for sure
 
 # SUMMARY: this is the script for generating the cluster metrics, given input files for two time points
 # 	- each time point dataset should be a file that can be read with the following statement 
@@ -11,8 +13,9 @@ input_args = commandArgs(trailingOnly = TRUE)
 msg <- file("outputs/logfile_datacollection.txt", open="wt")
 sink(msg, type="message")
 
-suppressWarnings(suppressPackageStartupMessages(source("functions/base_functions.R")))
-source("functions/processing_functions.R")
+suppressWarnings(suppressPackageStartupMessages(source("funcs.R")))
+# suppressWarnings(suppressPackageStartupMessages(source("functions/base_functions.R")))
+# source("functions/processing_functions.R")
 
 stopwatch <- rep(0,2) %>% set_names(c("start_time", "end_time"))
 stopwatch[1] <- Sys.time()
@@ -31,10 +34,19 @@ outputDetails(paste0("\nPART 1 OF 3: Data processing ", paste0(rep(".", 66), col
                      "  Preparing data for processing\n  Loading and formatting datafiles..."), newcat = TRUE)
 
 # the coded datasets (where the isolates are now replaced by positive integers)
-# t1_coded <- "data/timepoint1_data.csv" %>% readBaseData(., 1) %>% codeIsolates(., "tp1")
-# t2_coded <- "data/timepoint2_data.csv" %>% readBaseData(., 2) %>% codeIsolates(., "tp2")
-t1_coded <- input_args[1] %>% readBaseData(., 1) %>% codeIsolates(., "tp1")
-t2_coded <- input_args[2] %>% readBaseData(., 2) %>% codeIsolates(., "tp2")
+# time1_raw <- "data/timepoint1_data.csv" %>% readBaseData(., 1)
+# time2_raw <- "data/timepoint2_data.csv" %>% readBaseData(., 2)
+time1_raw <- input_args[1] %>% readBaseData(., 1)
+time2_raw <- input_args[2] %>% readBaseData(., 2)
+
+all_isolates <- c(time1_raw$isolate, time2_raw$isolate) %>% 
+  unique() %>% as_tibble() %>% 
+  set_colnames("char_isolate") %>% 
+  rowid_to_column("num_isolate")
+
+t1_coded <- time1_raw %>% codeIsolates(., "tp1", all_isolates)
+t2_coded <- time2_raw %>% codeIsolates(., "tp2", all_isolates)
+# ********
 
 t2_colnames <- t2_coded$tp2_h %>% unique() %>% sort()
 message("  Successfully read in datafiles")
@@ -44,6 +56,7 @@ outputDetails("  Processing time point 1 (TP1) clusters for easier data handling
 t1_comps <- t1_coded %>% 
   rename(tp_h = tp1_h, tp_cl = tp1_cl) %>% 
   compsSet(., "TP1", indicate_progress = TRUE)
+# ********
 
 outputDetails("  Collecting and counting novel isolates in each TP2 cluster...", newcat = TRUE)
 novels <- setdiff(t2_coded$isolate, t1_coded$isolate)
@@ -58,8 +71,7 @@ t2_comps <- t2_coded %>%
   compsSet(., "TP2", indicate_progress = TRUE) %>% 
   left_join(., counting_novels, by = "id")
 t2_comps$num_novs[is.na(t2_comps$num_novs)] <- 0
-
-ids <- list()
+# ********
 
 ### BASE CASE:
 outputDetails(paste0("\nPART 2 OF 3: Tracking and flagging clusters for base case ", 
@@ -70,8 +82,11 @@ outputDetails("  Collecting height data for base case, height 0...", newcat = TR
 outputDetails("  Tracking clusters", newcat = TRUE)
 h_before <- unique(t1_coded$tp1_h)[1]
 hdata <- t1_comps %>% filter(tp1_h == h_before) %>% arrange(tp1_h, tp1_cl)
+# ********
 
-cc <- trackClusters(hdata, t2_comps, t2_colnames, t2_coded, indicate_progress = TRUE)
+cc <- trackClusters(hdata, t2_comps, t2_colnames, t1_coded, t2_coded, indicate_progress = TRUE)
+# test1b <- cc %>% filter(tp1_cl == 1) %>% arrange(tp2_h, tp2_cl) %>% select(-num_novs)
+# test1a <- readRDS("testseth0c1.Rds") %>% select(colnames(test1b)) %>% arrange(tp2_h, tp2_cl)
 
 # note: the way these are flagged, we can see how many TP2 clusters were formed from the
 # selected TP1 cluster before we get to the "key growth" where a cluster went from its state
@@ -84,7 +99,7 @@ hbdata <- lapply(1:length(clx), function(i) {
   setTxtProgressBar(fcb0, i)
   cc %>% filter(tp1_cl == clx[i]) %>%
     arrange(tp2_h, tp2_cl) %>%
-    mutate(flag = 1:nrow(.)) %>% return()
+    mutate(flag = (1:nrow(.))-1) %>% return()
 }) %>% bind_rows() %>%
   createID(., "tp1", "tp1_h", "tp1_cl") %>%
   add_column(flagged_heights = 0)
@@ -113,7 +128,8 @@ for (j in 1:length(heights[-1])) {
   h_after <- heights[-1][j]
   message(paste0("  Height ", j, " / ", length(heights), ", labeled '", h_after, "'"))
   
-  aft_comps <- t1_comps %>% filter(tp1_h == h_after) %>%
+  aft_comps <- t1_comps %>% 
+    filter(tp1_h == h_after) %>%
     set_colnames(c("h_aft", "cl_aft", "id_aft", "comp", "size_aft"))
 
   # Part 1: identifying clusters that have not changed from the previous height
@@ -123,8 +139,8 @@ for (j in 1:length(heights[-1])) {
   hdata <- aft_comps %>%
     filter(!(id_aft %in% ss$id)) %>%
     set_colnames(colnames(t1_comps))
-
-  cc <- trackClusters(hdata, t2_comps, t2_colnames, t2_coded, indicate_progress = FALSE) %>%
+  
+  cc <- trackClusters(hdata, t2_comps, t2_colnames, t1_coded, t2_coded, indicate_progress = FALSE) %>%
     add_column(flag = NA)
 
   # Part 3: flagging clusters to indicate when they were first seen
