@@ -28,6 +28,7 @@ b1 <- t1_melted %>%
   summarise(tp1_cl_size = n(), .groups = "drop") %>% 
   left_join(t1_melted, ., by = "tp1_id")
 
+message("Part B")
 # the TP2 cluster assignments
 t2_melted <- time2_raw %>% 
   melt(id = "isolate") %>% as_tibble() %>% 
@@ -42,22 +43,38 @@ b2 <- t2_melted %>%
   summarise(tp2_cl_size = n(), .groups = "drop") %>% 
   left_join(t2_melted, ., by = "tp2_id")
 
+message("Part C")
 # going to run the test for every TP1 threshold
 heights <- b1$tp1_h %>% unique()
 
-message("\nPart B")
+# how many clusters is 5% of those at each threshold?
+# we will sample and test this many clusters
+tocheck <- lapply(heights, function(h) {
+  b1clusters <- b1 %>% filter(tp1_h == h) %>% pull(tp1_cl) %>% unique()
+  checked <- 0.05*length(b1clusters) %>% ceiling()
+  tibble(height = h, total_num_clusters = length(b1clusters), num_clusters_tested = checked)
+}) %>% bind_rows()
 
+message("\nPart D")
 for (height_x in heights) {
-  message(paste0("TP1_h", height_x))
-  
   # Part 1: For this TP1 height, we select 100 clusters at random for testing
   hx <- b1 %>% filter(tp1_h == height_x)
   b1clusters <- hx$tp1_cl %>% unique()
-  sampled_clusters <- sample(b1clusters, 100, replace = FALSE)
   
-  # Part 2: Extracting the collected tracking and growth data for the given height, 
-  #         then filtering and sorting so we will only compare for 100 randomly 
-  #         selected clusters at this height
+  sampled_clusters <- tocheck %>% 
+    filter(height == height_x) %>% 
+    pull(num_clusters_tested) %>% 
+    sample(b1clusters, ., replace = FALSE)
+  
+  checked_size_range <- hx %>% filter(tp1_cl %in% sampled_clusters) %>% pull(tp1_cl_size) %>% unique()
+  actual_size_range <- hx %>% pull(tp1_cl_size) %>% unique()
+  
+  message(paste0("TP1_h", height_x, " - testing ", length(sampled_clusters), " of ", length(b1clusters), 
+                 " clusters, with sizes in range (", min(checked_size_range), ", ", max(checked_size_range), 
+                 "). Actual size range (", min(actual_size_range), ", ", max(actual_size_range), ")."))
+  
+  # Part 2: Extracting the collected tracking and growth data for the given height, then filtering 
+  #         and sorting so we will only compare for 100 randomly selected clusters at this height
   collected_data <- readRDS(paste0("outputs/height_data/h", height_x, ".Rds")) %>% 
     rename(tp1_id = id) %>% 
     createID(., "tp2", "tp2_h", "tp2_cl") %>% 
