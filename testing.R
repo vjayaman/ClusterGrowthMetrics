@@ -4,15 +4,16 @@
 msg <- file("outputs/log_testing.txt", open="wt")
 sink(msg, type="message")
 
-suppressWarnings(suppressPackageStartupMessages(source("functions/base_functions.R")))
-source("functions/processing_functions.R")
+suppressWarnings(suppressPackageStartupMessages(source("funcs.R")))
+
+outputDetails(paste0("\n||---------------- Testing results ----------------||\n", 
+                     "Started process at: ", Sys.time()))
 
 time1_raw <- "data/timepoint1_data.csv" %>% readBaseData(., 1)
 time2_raw <- "data/timepoint2_data.csv" %>% readBaseData(., 2)
 
-# input_args = 125 2 , or 0 1
-# cluster_x <- 1#input_args[2]
 message("Part A")
+
 # the TP1 cluster assignments
 t1_melted <- time1_raw %>% 
   melt(id = "isolate") %>% as_tibble() %>% 
@@ -21,6 +22,7 @@ t1_melted <- time1_raw %>%
   createID(., "tp1", "variable", "value") %>% 
   set_colnames(c("isolate", "tp1_h", "tp1_cl", "tp1_id"))
 
+# adding a column with the TP1 cluster sizes
 b1 <- t1_melted %>% 
   group_by(tp1_id) %>% 
   summarise(tp1_cl_size = n(), .groups = "drop") %>% 
@@ -34,23 +36,28 @@ t2_melted <- time2_raw %>%
   createID(., "tp2", "variable", "value") %>% 
   set_colnames(c("isolate", "tp2_h", "tp2_cl", "tp2_id"))
 
+# adding a column with the TP2 cluster sizes
 b2 <- t2_melted %>% 
   group_by(tp2_id) %>% 
   summarise(tp2_cl_size = n(), .groups = "drop") %>% 
   left_join(t2_melted, ., by = "tp2_id")
 
+# going to run the test for every TP1 threshold
 heights <- b1$tp1_h %>% unique()
+
 message("\nPart B")
 
 for (height_x in heights) {
   message(paste0("TP1_h", height_x))
-  # message("-Part 1")
   
+  # Part 1: For this TP1 height, we select 100 clusters at random for testing
   hx <- b1 %>% filter(tp1_h == height_x)
   b1clusters <- hx$tp1_cl %>% unique()
-  
   sampled_clusters <- sample(b1clusters, 100, replace = FALSE)
   
+  # Part 2: Extracting the collected tracking and growth data for the given height, 
+  #         then filtering and sorting so we will only compare for 100 randomly 
+  #         selected clusters at this height
   collected_data <- readRDS(paste0("outputs/height_data/h", height_x, ".Rds")) %>% 
     rename(tp1_id = id) %>% 
     createID(., "tp2", "tp2_h", "tp2_cl") %>% 
@@ -60,8 +67,11 @@ for (height_x in heights) {
     arrange(tp1_cl, tp2_h, tp2_cl) %>% 
     mutate(across(tp2_cl_size, as.integer))
 
-  # message("-Part 2")
-  
+  # Part 3: For each of the sampled clusters, we manually filter the TP2 set to find 
+  #         all clusters that contain the isolates from that TP1 cluster, then count 
+  #         to see which of these TP2 clusters contain (at least) all of the TP1 
+  #         isolates from that cluster.
+  #         We then bind the resulting TP2 cases to the TP1 cluster, sizes and all
   actual_data <- lapply(1:length(sampled_clusters), function(i) {
     c1 <- hx %>% filter(tp1_cl == sampled_clusters[i])
     basecase <- b2 %>% filter(isolate %in% c1$isolate)
@@ -83,8 +93,9 @@ for (height_x in heights) {
     arrange(tp1_cl, tp2_h, tp2_cl) %>% 
     mutate(across(tp2_cl_size, as.integer))
   
-  # message("-Part 3")
-  
+  # Part 4: If our collected data is the same as the actual matching (for these 100 
+  #         clusters), then we move onto the next height.
+  #         Otherwise, we make a note in the log and save the results for further analysis.
   if (!identical(collected_data, actual_data)) {
     message(paste0("Test case TP1_h", height_x, " failed."))
     saveRDS(actual_data, paste0("outputs/testing/h", height_x, "_actual_data.Rds"))
@@ -92,81 +103,18 @@ for (height_x in heights) {
   }
 }
 
-# actual_data <- readRDS("outputs/testing/h1_actual_data.Rds")
-# collected_data <- readRDS("outputs/testing/h1_collected_data.Rds")
+outputDetails(paste0("\n||---------------- Testing results ----------------||\n", 
+                     "Finished process at: ", Sys.time()))
 
 # missed <- setdiff(actual_data, collected_data)
 # saveRDS(missed, "tp1_h1_c105_missing.Rds")
 
-# collected_data <- a1 %>% filter(tp1_cl == cluster_x) %>% arrange(tp1_cl, tp2_h, tp2_cl)
-# actual_data <- hxclusters %>% filter(tp1_cl == cluster_x) %>% arrange(tp1_cl, tp2_h, tp2_cl)
-# saveRDS(actual_data, "testseth0c1.Rds")
-
-
-
-# idx <- time1_raw %>% select(isolate, '0') %>% slice(1) %>% pull(isolate)
-# time2_raw %>% select(isolate, '0') %>% filter(isolate == idx)
-
-
-
+# actual_data <- readRDS("outputs/testing/h1_actual_data.Rds")
+# collected_data <- readRDS("outputs/testing/h1_collected_data.Rds")
 
 # time1_raw %>% select('isolate', '1') %>% rename(h1 = '1') %>% filter(h1 == 105)
 # idx <- time1_raw %>% select('isolate', '1') %>% 
 #   rename(h1 = '1') %>% filter(h1 == 105) %>% pull(isolate)
 
 
-
-
-# # identifiers for all h0 clusters
-# tp1clustersx <- b1 %>% filter(tp1_h == x) %>% select(tp1_id) %>% unique() %>% pull()
-# 
-# # isos <- list()
-# # starting at 4:42
-# matching_x <- lapply(1:length(tp1clustersx), function(i) {
-#   print(paste0(i, " / ", length(tp1clustersx)))
-#   
-#   cx <- tp1clustersx[i]
-#   c2 <- b1 %>% filter(tp1_id == cx)
-#   
-#   part1 <- c2 %>% select(-isolate) %>% unique()
-#   c2size <- c2$tp1_cl_size %>% unique()
-# 
-#   c2match <- b2 %>% 
-#     filter(isolate %in% c2$isolate) %>% 
-#     filter(tp2_cl_size >= c2size) %>% 
-#     arrange(tp2_h, tp2_cl) %>% 
-#     slice(1) %>% 
-#     pull(tp2_id)
-#   
-#   part2 <- b2 %>% filter(tp2_id == c2match) %>% 
-#     select(-isolate) %>% unique()
-#   
-#   bind_cols(part1, part2) %>% return()
-# }) %>% bind_rows()
-# # Sys.time()
-# # saveRDS(matching_first_case, "outputs/testing/h0.Rds")
-# # saveRDS(matching_x, "outputs/testing/h125.Rds")
-# 
-# # tp1clusters1 <- b1 %>% filter(tp1_h == 1) %>% select(tp1_id) %>% unique() %>% pull()
-# # cx <- tp1clusters1[2]
-# # c2 <- b1 %>% filter(tp1_id == cx)
-# # b1 %>% filter(tp1_h == 0)
-# # matching_second_case <- 
-# 
-
-
-
-
-# b2 <- time2_raw %>% 
-#   melt(id = "isolate") %>% 
-#   as_tibble() %>% 
-#   mutate(across(variable, as.character)) %>% 
-#   mutate(across(variable, as.integer)) %>% 
-#   createID(., "tp2", "variable", "value") %>% 
-#   set_colnames(c("isolate", "tp2_h", "tp2_cl", "tp2_id"))
-#   
-# b2 <- table(b2$tp2_id) %>% as.data.frame() %>% 
-#   as_tibble() %>% set_colnames(c("tp2_id", "tp2_cl_size")) %>% 
-#   mutate(across(tp2_id, as.character)) %>% 
-#   left_join(b2, ., by = "tp2_id")
 
