@@ -53,8 +53,9 @@ message("  Successfully read in datafiles")
 
 # Note: assumption made that first column is labelled "isolate"
 outputDetails("  Processing time point 1 (TP1) clusters for easier data handling", newcat = TRUE)
-t1_comps <- t1_coded %>% 
-  rename(tp_h = tp1_h, tp_cl = tp1_cl) %>% 
+# t1_comps <- readRDS("t1_comps.RDS")
+t1_comps <- t1_coded %>%
+  rename(tp_h = tp1_h, tp_cl = tp1_cl) %>%
   compsSet(., "TP1", indicate_progress = TRUE)
 # ********
 
@@ -66,11 +67,12 @@ counting_novels <- t2_coded %>%
   summarise(num_novs = n(), .groups = "drop")
 
 outputDetails("  Processing time point 2 (TP2) clusters for easier data handling...", newcat = TRUE)
-t2_comps <- t2_coded %>% 
+t2_comps <- t2_coded %>%
   rename(tp_h = tp2_h, tp_cl = tp2_cl) %>%
-  compsSet(., "TP2", indicate_progress = TRUE) %>% 
+  compsSet(., "TP2", indicate_progress = TRUE) %>%
   left_join(., counting_novels, by = "id")
 t2_comps$num_novs[is.na(t2_comps$num_novs)] <- 0
+# t2_comps <- readRDS("t2_comps.Rds")
 # ********
 
 ### BASE CASE:
@@ -84,32 +86,24 @@ h_before <- unique(t1_coded$tp1_h)[1]
 hdata <- t1_comps %>% filter(tp1_h == h_before) %>% arrange(tp1_h, tp1_cl)
 # ********
 
-cc <- trackClusters(hdata, t2_comps, t2_colnames, t1_coded, t2_coded, indicate_progress = TRUE)
-# test1b <- cc %>% filter(tp1_cl == 1) %>% arrange(tp2_h, tp2_cl) %>% select(-num_novs)
-# test1a <- readRDS("testseth0c1.Rds") %>% select(colnames(test1b)) %>% arrange(tp2_h, tp2_cl)
-
+cc <- trackClusters(hdata, t2_comps, t2_colnames, t1_coded, t2_coded, indicate_progress = TRUE) %>% 
+  createID(., "tp1", "tp1_h", "tp1_cl")
+# saveRDS(cc, "cc.Rds")
 # note: the way these are flagged, we can see how many TP2 clusters were formed from the
 # selected TP1 cluster before we get to the "key growth" where a cluster went from its state
 # at TP1 to its state at TP2 with a remarkable amount of growth
 
 outputDetails("  Flagging clusters", newcat = TRUE)
-clx <- unique(cc$tp1_cl)
-fcb0 <- txtProgressBar(min = 0, max = length(clx), initial = 0, style = 3)
-hbdata <- lapply(1:length(clx), function(i) {
-  setTxtProgressBar(fcb0, i)
-  cc %>% filter(tp1_cl == clx[i]) %>%
-    arrange(tp2_h, tp2_cl) %>%
-    mutate(flag = (1:nrow(.))-1) %>% return()
-}) %>% bind_rows() %>%
-  createID(., "tp1", "tp1_h", "tp1_cl") %>%
-  add_column(flagged_heights = 0)
-close(fcb0)
+hbdata <- cc %>% add_column(flag = cc$id)
 saveData(dtype=3, tmp=hbdata, h=0)
 
 bef_comps <- t1_comps %>% filter(tp1_h == h_before) %>%
   set_colnames(c("h_bef", "cl_bef", "id_bef", "comp", "size_bef"))
 
 heights <- unique(t1_comps$tp1_h)
+
+following_clusters <- tibble("Total" = bef_comps$id_bef %>% unique() %>% length(), 
+                             "Same" = 0, "Changed" = cc$id %>% unique() %>% length()) %>% print()
 
 outputDetails(paste0("\nPART 3 OF 3: Tracking and flagging clusters for the rest of the heights (", 
                      length(heights) - 1, " of them) ........."), newcat = TRUE)
@@ -126,39 +120,45 @@ for (j in 1:length(heights[-1])) {
   setTxtProgressBar(fcb, j)
   
   h_after <- heights[-1][j]
-  message(paste0("  Height ", j, " / ", length(heights), ", labeled '", h_after, "'"))
+  message(paste0("  Height ", j, " / ", length(heights)))
   
-  aft_comps <- t1_comps %>% 
-    filter(tp1_h == h_after) %>%
+  aft_comps <- t1_comps %>% filter(tp1_h == h_after) %>%
     set_colnames(c("h_aft", "cl_aft", "id_aft", "comp", "size_aft"))
 
   # Part 1: identifying clusters that have not changed from the previous height
   ss <- noChange(aft_comps, bef_comps, hbdata)
-
+  
   # Part 2: tracking clusters that changed
   hdata <- aft_comps %>%
     filter(!(id_aft %in% ss$id)) %>%
     set_colnames(colnames(t1_comps))
   
-  cc <- trackClusters(hdata, t2_comps, t2_colnames, t1_coded, t2_coded, indicate_progress = FALSE) %>%
-    add_column(flag = NA)
-
+  # indicate_progress = FALSE
+  cc <- trackClusters(hdata, t2_comps, t2_colnames, 
+                      t1_coded, t2_coded, indicate_progress = FALSE) %>% 
+    createID(., "tp1", "tp1_h", "tp1_cl")
+  
+  all_ids <- aft_comps$id_aft %>% unique() %>% sort()
+  same_ids <- ss$id %>% unique() %>% sort()
+  changed_ids <- cc$id %>% unique() %>% sort()
+  
+  following_clusters <- following_clusters %>% 
+    bind_rows(., tibble(Total = length(all_ids), Same = length(same_ids), 
+                        Changed = length(changed_ids)))
+  saveRDS(following_clusters, "outputs/check_sizes.Rds")
+  
+  message(paste0("  Of ", length(all_ids), " clusters, ", length(changed_ids), " changed and ", 
+                 length(same_ids), " stayed the same from height ", h_before, "."))
+  
+  if (!(identical(setdiff(all_ids, changed_ids), same_ids))) {
+    stop("Not all TP1 clusters were accounted for")
+  }
+  
   # Part 3: flagging clusters to indicate when they were first seen
   if (nrow(cc) > 0) {
-
-    clx <- unique(cc$tp1_cl)
-
-    fb <- lapply(1:length(clx), function(i) {
-      cc1 <- cc %>% filter(tp1_cl == clx[i]) %>%
-        arrange(tp2_h, tp2_cl)
-      cc2 <- cc1 %>% mutate(flag = (1:nrow(cc1))-1) %>% return()
-    }) %>% bind_rows()
-    
-    hnew <- fb %>% createID(., "tp1", "tp1_h", "tp1_cl") %>%
-      add_column(flagged_heights = 0) %>%
-      bind_rows(., ss) %>%
+    hnew <- cc %>% add_column(flag = cc$id) %>% 
+      bind_rows(ss) %>% 
       arrange(tp1_h, tp1_cl)
-
   }else {
     hnew <- ss %>% arrange(tp1_h, tp1_cl)
   }
