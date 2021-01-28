@@ -27,38 +27,65 @@ message("Preparing data for processing; loading datafiles")
 ## FOR USER: replace the filename variables with quoted file paths if you don't want to input them each time
 # the cluster assignments, in form: || isolates | height 0 | height 1 | ... ||
 # the raw datasets, no filtering or other changes made
-# time1_raw <- input_args[1] %>% readBaseData(., 1)
-# time2_raw <- input_args[2] %>% readBaseData(., 2)
-time1_raw <- "data/timepoint1_data.csv" %>% readBaseData(., 1)
-time2_raw <- "data/timepoint2_data.csv" %>% readBaseData(., 2)
+time1_raw <- input_args[1] %>% readBaseData(., 1)
+time2_raw <- input_args[2] %>% readBaseData(., 2)
+# time1_raw <- "data/timepoint1_data.csv" %>% readBaseData(., 1)
+# time2_raw <- "data/timepoint2_data.csv" %>% readBaseData(., 2)
+
+all_isolates <- c(time1_raw$isolate, time2_raw$isolate) %>% 
+  unique() %>% as_tibble() %>% 
+  set_colnames("char_isolate") %>% 
+  rowid_to_column("num_isolate")
+
+t1_coded <- time1_raw %>% codeIsolates(., "tp1", all_isolates)
+
+t1_comps <- t1_coded %>%
+  rename(tp_h = tp1_h, tp_cl = tp1_cl) %>%
+  compsSet(., "TP1", indicate_progress = TRUE) %>% 
+  arrange(tp1_h, tp1_cl)
+
+# Identifying the last time each cluster was seen, will merge using "flag = first time it was seen in TP1"
+allcomps <- t1_comps$composition %>% unique()
+dfx <- lapply(1:length(allcomps), function(i) {
+  t1_comps %>% filter(composition == allcomps[i]) %>%
+    slice(1, nrow(.)) %>% pull(id) %>%
+    t() %>% data.frame(stringsAsFactors = FALSE)
+}) %>% bind_rows() %>% as_tibble() %>% set_colnames(c("first_flag", "last_flag"))
 
 message("Successfully read in datafiles")
 
-# allheights <- colnames(time1_raw)[2:600]
 allheights <- colnames(time1_raw)[-1]
-# allheights <- allheights[1:51]
+
 # this part takes 15 minutes for the 910 heights
 outputDetails(paste0("\nPART 2 OF 4: Adding growth columns ", 
                      paste0(rep(".", 64), collapse = ""), sep = ""), newcat = TRUE)
 
 stopwatch[2] <- Sys.time()
 message("Adding growth columns to the height data\nCheck the 'outputs/with_growth_rate/' directory for saved data")
-# actual_growth_rate = (change in cluster size) / (original cluster size)
-# b_ov_growth = (number of novel isolates) / (growth rate)
+
 m <- length(allheights)
 p2 <- txtProgressBar(min = 0, max = m, initial = 0, style = 3)
 a <- lapply(1:m, function(i) {
   setTxtProgressBar(p2, i)
-  # df <- accData(allheights[i])
-  allheights[i]
-  oneheight <- readRDS(paste0("outputs/height_data/h", allheights[i], ".Rds"))
+  
+  oneheight <- readRDS(paste0("outputs/height_data/h", allheights[i], ".Rds")) %>% 
+    left_join(., dfx, by = c("flag" = "first_flag"))
+  
   # growth = (change in cluster size) / (original cluster size)
   oneheight$actual_growth_rate <- (oneheight$tp2_cl_size - oneheight$tp1_cl_size) / oneheight$tp1_cl_size
+  
   # growth acceleration? = (number of novel isolates) / (growth rate)
   oneheight$b_ov_growth <- oneheight$num_novs / oneheight$actual_growth_rate
   oneheight$b_ov_growth[is.na(oneheight$b_ov_growth)] <- 0
   
-  saveData(dtype = 4, oh = oneheight, h = allheights[i])
+  # with growth rate column(s)
+  wgr <- oneheight %>% rename(tp1_id = id) %>% 
+    createID(., "tp2", "tp2_h", "tp2_cl") %>% 
+    rename(tp2_id = id) %>% 
+    select(tp1_id, tp1_h, tp1_cl, tp1_cl_size, flag, last_flag,
+           tp2_id, tp2_h, tp2_cl, tp2_cl_size, num_novs, actual_growth_rate, b_ov_growth)
+  
+  saveData(dtype = 4, oh = wgr, h = allheights[i])
 })
 close(p2)
 
