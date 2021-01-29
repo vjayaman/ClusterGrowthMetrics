@@ -21,46 +21,89 @@ option_list <- list(
 
 arg <- parse_args(OptionParser(option_list=option_list))
 
-oneHeight <- function(h_i, novels) {
+# oneHeight <- function(h_i, novels) {
+#   # h_i <- pt$Threshold[10]
+#   oneh <- readRDS(paste0("outputs/height_data/h", h_i, ".Rds")) %>%
+#     left_join(., dfx, by = c("flag" = "first_flag")) %>%
+#     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
+# 
+#   # reading in the growth data for a particular height, and arranging by first TP1 then by TP2
+#   # extracting the first TP2_h_c match for each TP1 cluster at this height, and adding a column
+#   # indicating the actual size change (which may include non-novels)
+#   c1a <- oneh[diff(c(0, oneh$tp1_cl)) != 0,] %>% 
+#     rename(tp1_id = id) %>% createID(., "tp2", "tp2_h", "tp2_cl") %>% rename(tp2_id = id)
+#   
+#   c1b <- lapply(1:nrow(c1a), function(i) {
+#     additionalTP1(b1, b2, c1a$tp1_id[i], c1a$tp2_id[i], novels) %>% return()
+#   }) %>% bind_rows()
+#   c1 <- left_join(c1a, c1b, by = c("tp1_id", "tp2_id"))
+#   tp1_size <- c1$tp1_cl_size; tp2_size <- c1$tp2_cl_size; novels_hx <- c1$num_novs
+# 
+#   c2 <- c1 %>% add_column(
+#       actual_size_change = tp2_size - tp1_size, 
+#       actual_growth_rate = (tp2_size - tp1_size) / tp1_size,
+#       # actual_growth_rate = tp2_size / tp1_size, 
+#       new_growth = tp2_size / (tp2_size - novels_hx)
+#       # b_ov_growth = novels_hx / ((tp2_size - tp1_size) / tp1_size)
+#       ) %>% 
+#     rename(additional_tp1 = add_tp1) %>% 
+#     select(tp1_id, tp1_h, tp1_cl, tp1_cl_size, flag, last_flag, 
+#            tp2_id, tp2_h, tp2_cl, tp2_cl_size, additional_tp1, num_novs, actual_size_change, 
+#            actual_growth_rate, #b_ov_growth, 
+#            new_growth)
+#   # c2$b_ov_growth[is.na(c2$b_ov_growth)] <- 0
+#   
+# 
+#   c3 <- c2 %>% arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
+#     leadingZeros(., "tp1_cl", "c") %>% leadingZeros(., "tp2_cl", "c") %>%
+#     leadingZeros(., "tp1_h", "h", w = max(nchar(colnames(time1_raw)[-1]))) %>%
+#     leadingZeros(., "tp2_h", "h", w = max(nchar(colnames(time2_raw)[-1])))
+# 
+#   return(c3)
+# }
+
+
+oneHeightV2 <- function(h_i, novels, t2_composition, t1_composition) {
+  h_i <- pt$Threshold[10]
   oneh <- readRDS(paste0("outputs/height_data/h", h_i, ".Rds")) %>%
     left_join(., dfx, by = c("flag" = "first_flag")) %>%
     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
 
-  # reading in the growth data for a particular height, and arranging by first TP1 then by TP2
-  # extracting the first TP2_h_c match for each TP1 cluster at this height, and adding a column
-  # indicating the actual size change (which may include non-novels)
-    c1 <- oneh %>% pull(id) %>% unique() %>% 
-      lapply(., function(idx) {
-        a1 <- oneh %>% filter(id == idx) %>% slice(1) %>% 
-          rename(tp1_id = id) %>% createID(., "tp2", "tp2_h", "tp2_cl") %>% rename(tp2_id = id)
-        additionalTP1(b1, b2, a1$tp1_id, a1$tp2_id, novels) %>% 
-          left_join(a1, ., by = c("tp1_id", "tp2_id")) %>% return()
-      }) %>% bind_rows()
+  # check: (no cluster numbers skipped) - none should be skipped by definition, but just in case
+  # identical(unique(oneh$tp1_cl), min(oneh$tp1_cl):max(oneh$tp1_cl))
   
-  tp1_size <- c1$tp1_cl_size; tp2_size <- c1$tp2_cl_size; novels_hx <- c1$num_novs
-
-  c2 <- c1 %>% add_column(
-      actual_size_change = tp2_size - tp1_size, 
-      actual_growth_rate = (tp2_size - tp1_size) / tp1_size,
-      # actual_growth_rate = tp2_size / tp1_size, 
-      new_growth = tp2_size / (tp2_size - novels_hx)
-      # b_ov_growth = novels_hx / ((tp2_size - tp1_size) / tp1_size)
-      (tp1_size + novels_hx) / tp1_size
-      ) %>% 
-    
+  # first TP2 match for each TP1 cluster at this height
+  d2 <- oneh[diff(c(0, oneh$tp1_cl)) != 0,] %>% rename(tp1_id = id) %>% 
+    createID(., "tp2", "tp2_h", "tp2_cl") %>% rename(tp2_id = id)
+  
+  matched <- d2 %>% select(tp1_id, tp2_id)
+  
+  e2 <- t2_composition %>% select(id, composition) %>% rename(tp2_id = id, comp2 = composition)
+  
+  e1 <- t1_composition %>% select(id, composition) %>% rename(tp1_id = id, comp1 = composition) %>% 
+    filter(tp1_id %in% matched$tp1_id) %>% 
+    left_join(., matched, by = "tp1_id") %>% 
+    left_join(., e2, by = "tp2_id")
+  
+  did_not_change <- e1 %>% filter(comp1 == comp2) %>% select(tp1_id, tp2_id) %>% add_column(add_tp1 = 0)
+  chg <- e1 %>% filter(comp1 != comp2) %>% select(tp1_id, tp2_id)
+  
+  c1 <- lapply(1:nrow(chg), function(i) {
+    additionalTP1(b1, b2, chg$tp1_id[i], chg$tp2_id[i], novels)
+  }) %>% bind_rows(., did_not_change) %>% left_join(d2, ., by = c("tp1_id", "tp2_id"))
+  
+  c1 %>% 
+    add_column(
+      actual_size_change = (c1$tp2_cl_size - c1$tp1_cl_size), 
+      actual_growth_rate = ((c1$tp2_cl_size - c1$tp1_cl_size) / c1$tp1_cl_size) %>% round(., digits = 3),
+      new_growth = (c1$tp2_cl_size / (c1$tp2_cl_size - c1$num_novs)) %>% round(., digits = 3)) %>% 
     rename(additional_tp1 = add_tp1) %>% 
-    select(tp1_id, tp1_h, tp1_cl, tp1_cl_size, flag, last_flag, 
-           tp2_id, tp2_h, tp2_cl, tp2_cl_size, additional_tp1, num_novs, actual_size_change, 
-           actual_growth_rate, b_ov_growth, new_growth)
-  c2$b_ov_growth[is.na(c2$b_ov_growth)] <- 0
-  
-
-  c3 <- c2 %>% arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
+    select(tp1_id, tp1_h, tp1_cl, tp1_cl_size, flag, last_flag, tp2_id, tp2_h, tp2_cl, tp2_cl_size, 
+           additional_tp1, num_novs, actual_size_change, actual_growth_rate, new_growth) %>% 
+    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
     leadingZeros(., "tp1_cl", "c") %>% leadingZeros(., "tp2_cl", "c") %>%
     leadingZeros(., "tp1_h", "h", w = max(nchar(colnames(time1_raw)[-1]))) %>%
-    leadingZeros(., "tp2_h", "h", w = max(nchar(colnames(time2_raw)[-1])))
-
-  return(c3)
+    leadingZeros(., "tp2_h", "h", w = max(nchar(colnames(time2_raw)[-1]))) %>% return()
 }
 
 # time1_raw <- readBaseData("data/timepoint1_data.csv", 1)
@@ -79,10 +122,24 @@ if (!exists("time1_raw") | !exists("time2_raw")) {
 novels <- setdiff(time2_raw$isolate, time1_raw$isolate)
 heights <- colnames(time1_raw)[-1]
 
-t1_comps <- c(time1_raw$isolate, time2_raw$isolate) %>% unique() %>% as_tibble() %>%
-  set_colnames("char_isolate") %>% rowid_to_column("num_isolate") %>%
-  codeIsolates(time1_raw, "tp1", .) %>% rename(tp_h = tp1_h, tp_cl = tp1_cl) %>%
-  compsSet(., "TP1", indicate_progress = FALSE) %>% arrange(tp1_h, tp1_cl)
+all_isolates <- c(time1_raw$isolate, time2_raw$isolate) %>% unique() %>% 
+  as_tibble() %>% set_colnames("char_isolate") %>% rowid_to_column("num_isolate")
+
+t1_coded <- time1_raw %>% codeIsolates(., "tp1", all_isolates)
+t2_coded <- time2_raw %>% codeIsolates(., "tp2", all_isolates)
+
+t2_colnames <- t2_coded$tp2_h %>% unique() %>% sort()
+
+t1_comps <- t1_coded %>% rename(tp_h = tp1_h, tp_cl = tp1_cl) %>%
+  compsSet(., "TP1", indicate_progress = TRUE)
+
+novels_coded <- setdiff(t2_coded$isolate, t1_coded$isolate)
+counting_novels <- t2_coded %>% filter(isolate %in% novels_coded) %>%
+  group_by(id) %>% summarise(num_novs = n(), .groups = "drop")
+
+t2_comps <- t2_coded %>% rename(tp_h = tp2_h, tp_cl = tp2_cl) %>%
+  compsSet(., "TP2", indicate_progress = TRUE) %>% left_join(., counting_novels, by = "id")
+t2_comps$num_novs[is.na(t2_comps$num_novs)] <- 0
 
 # Identifying the last time each cluster was seen
 allcomps <- t1_comps$composition %>% unique()
@@ -134,8 +191,31 @@ if (is.null(data_type)) {
          device = "png", plot = p, width = 16, height = 9, units = "in", dpi = 320)
   print(pt$Threshold)
   
-  c4 <- lapply(pt$Threshold, function(hval) {oneHeight(hval, novels)})
+  Sys.time()
+  c5 <- lapply(pt$Threshold, function(hval) {oneHeightV2(hval, novels)}) %>% bind_rows()
+  # saveRDS(c5, "tmp1.Rds")
+  Sys.time()
+  
+  # # 7:50-8:24
+  # c4 <- lapply(pt$Threshold[10:20], function(hval) {
+  #   print(hval)
+  #   oneHeight(hval, novels)}) %>% bind_rows()
+  # # saveRDS(c4, "tmp2.Rds")
+  # Sys.time()
 }
+
+# a1 <- c4 %>% arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
+# a1$actual_growth_rate %<>% round(., digits = 3)
+# a1$new_growth %<>% round(., digits = 3)
+# 
+# a2 <- c5 %>% arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
+# 
+# a2$actual_growth_rate %<>% round(., digits = 3)
+# a2$actual_size_change %<>% as.integer()
+# a2$new_growth %<>% round(., digits = 3)
+# a2$additional_tp1 %<>% as.integer()
+# 
+# identical(a1, a2)
 
 clusters_formatted <- c4 %>% set_colnames(c(
     "TP1 ID", "TP1 height", "TP1 cluster", "TP1 cluster size",
@@ -150,19 +230,18 @@ clusters_formatted <- c4 %>% set_colnames(c(
 write.csv(clusters_formatted, paste0("outputs/summary/TP1_cluster_results.csv"), row.names = FALSE)
   
 
-isolates_formatted <- time1_raw %>% 
-  select(isolate, as.character(pt$Threshold)) %>% 
-  melt(., id = "isolate") %>% as_tibble() %>% 
-  rename(tp1_h = variable, tp1_cl = value) %>% 
-  mutate(across(tp1_h, as.character)) %>% 
-  mutate(across(tp1_h, as.integer)) %>% 
-  leadingZeros(., "tp1_h", "h") %>% 
-  leadingZeros(., "tp1_cl", "c") %>% 
-  right_join(., c4, by = c("tp1_h", "tp1_cl")) %>% 
-  arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
-  select(isolate, colnames(c4)) %>% 
+isolates_formatted <- time1_raw %>%
+  select(isolate, as.character(pt$Threshold)) %>%
+  melt(., id = "isolate") %>% as_tibble() %>%
+  rename(tp1_h = variable, tp1_cl = value) %>%
+  mutate(across(tp1_h, as.character)) %>%
+  mutate(across(tp1_h, as.integer)) %>%
+  leadingZeros(., "tp1_h", "h") %>%
+  leadingZeros(., "tp1_cl", "c") %>%
+  right_join(., c4, by = c("tp1_h", "tp1_cl")) %>%
+  arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>%
+  select(isolate, colnames(c4)) %>%
   set_colnames(c("Isolates", colnames(clusters_formatted)))
 
 write.csv(isolates_formatted, paste0("outputs/summary/TP1_strain_results.csv"), row.names = FALSE)
-  
-  
+
