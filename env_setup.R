@@ -1,9 +1,9 @@
 #! /usr/bin/env Rscript
 input_args = commandArgs(trailingOnly = TRUE)
 
-# 1) Rscript env_setup.R <data directory> <time point 1 dataset> <time point 2 dataset> 
+# 1) Rscript env_setup.R <output data directory> <time point 1 dataset> <time point 2 dataset> 
 #   - to install packages and set up required directory structure
-# 2) Rscript nawc.R -i data/european-t1-clusters_for_nawc.tsv -o data
+# 2) Rscript nawc.R -i data/tp1-clusters_for_nawc.tsv -o data
 # 3) Rscript datacollection.R data/timepoint1_data.csv data/timepoint2_data.csv
 # 4) Rscript result_files.R -a data/timepoint1_data.csv -b data/timepoint2_data.csv -t "nawc"
 
@@ -15,8 +15,8 @@ pb <- txtProgressBar(min = 0, max = 4, initial = 1, style = 3)
 
 message(paste0("For reporting an issue, see https://github.com/vjayaman/ClusterGrowthMetrics/issues.\n"))
 
-required_packages <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", 
-                       "ggplot2", "plotly", "flexdashboard", "RColorBrewer")
+required_packages <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", "ggplot2", 
+                       "plotly", "flexdashboard", "RColorBrewer", "stringr",  "optparse", "shiny")
 
 not_installed <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
 setTxtProgressBar(pb, 2)
