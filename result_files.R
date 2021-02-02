@@ -21,50 +21,7 @@ option_list <- list(
 
 arg <- parse_args(OptionParser(option_list=option_list))
 
-# oneHeight <- function(h_i, novels) {
-#   # h_i <- pt$Threshold[10]
-#   oneh <- readRDS(paste0("outputs/height_data/h", h_i, ".Rds")) %>%
-#     left_join(., dfx, by = c("flag" = "first_flag")) %>%
-#     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
-# 
-#   # reading in the growth data for a particular height, and arranging by first TP1 then by TP2
-#   # extracting the first TP2_h_c match for each TP1 cluster at this height, and adding a column
-#   # indicating the actual size change (which may include non-novels)
-#   c1a <- oneh[diff(c(0, oneh$tp1_cl)) != 0,] %>% 
-#     rename(tp1_id = id) %>% createID(., "tp2", "tp2_h", "tp2_cl") %>% rename(tp2_id = id)
-#   
-#   c1b <- lapply(1:nrow(c1a), function(i) {
-#     additionalTP1(b1, b2, c1a$tp1_id[i], c1a$tp2_id[i], novels) %>% return()
-#   }) %>% bind_rows()
-#   c1 <- left_join(c1a, c1b, by = c("tp1_id", "tp2_id"))
-#   tp1_size <- c1$tp1_cl_size; tp2_size <- c1$tp2_cl_size; novels_hx <- c1$num_novs
-# 
-#   c2 <- c1 %>% add_column(
-#       actual_size_change = tp2_size - tp1_size, 
-#       actual_growth_rate = (tp2_size - tp1_size) / tp1_size,
-#       # actual_growth_rate = tp2_size / tp1_size, 
-#       new_growth = tp2_size / (tp2_size - novels_hx)
-#       # b_ov_growth = novels_hx / ((tp2_size - tp1_size) / tp1_size)
-#       ) %>% 
-#     rename(additional_tp1 = add_tp1) %>% 
-#     select(tp1_id, tp1_h, tp1_cl, tp1_cl_size, flag, last_flag, 
-#            tp2_id, tp2_h, tp2_cl, tp2_cl_size, additional_tp1, num_novs, actual_size_change, 
-#            actual_growth_rate, #b_ov_growth, 
-#            new_growth)
-#   # c2$b_ov_growth[is.na(c2$b_ov_growth)] <- 0
-#   
-# 
-#   c3 <- c2 %>% arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
-#     leadingZeros(., "tp1_cl", "c") %>% leadingZeros(., "tp2_cl", "c") %>%
-#     leadingZeros(., "tp1_h", "h", w = max(nchar(colnames(time1_raw)[-1]))) %>%
-#     leadingZeros(., "tp2_h", "h", w = max(nchar(colnames(time2_raw)[-1])))
-# 
-#   return(c3)
-# }
-
-
 oneHeightV2 <- function(h_i, novels, t2_composition, t1_composition) {
-  h_i <- pt$Threshold[10]
   oneh <- readRDS(paste0("outputs/height_data/h", h_i, ".Rds")) %>%
     left_join(., dfx, by = c("flag" = "first_flag")) %>%
     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
