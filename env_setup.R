@@ -1,11 +1,11 @@
 #! /usr/bin/env Rscript
 input_args = commandArgs(trailingOnly = TRUE)
 
-# 1) Rscript env_setup.R - to install packages and set up required directory structure
-# 2) Rscript data_prep.R: on the files in data/, including data/european-t1_clusters.csv
-# 3) Rscript nawc.R -i data/european-t1-clusters_for_nawc.tsv -o data
-# 4) Rscript datacollection.R data/timepoint1_data.csv data/timepoint2_data.csv
-# 5) Rscript result_files.R -a data/timepoint1_data.csv -b data/timepoint2_data.csv -t "nawc"
+# 1) Rscript env_setup.R <data directory> <time point 1 dataset> <time point 2 dataset> 
+#   - to install packages and set up required directory structure
+# 2) Rscript nawc.R -i data/european-t1-clusters_for_nawc.tsv -o data
+# 3) Rscript datacollection.R data/timepoint1_data.csv data/timepoint2_data.csv
+# 4) Rscript result_files.R -a data/timepoint1_data.csv -b data/timepoint2_data.csv -t "nawc"
 
 # This should be run first, to make sure the required packages are installed
 msg <- file("logfile_env.txt", open="wt")
@@ -26,26 +26,37 @@ setTxtProgressBar(pb, 4)
 
 # Testing packages were installed correctly:
 x <- lapply(required_packages, require, character.only = TRUE)
+names(x) <- required_packages
+
 dir.create("outputs", showWarnings = FALSE)
 dir.create("data")
 
-cat("\nEnvironment set up successful.\n")
+if (all(unlist(x))) {
+  cat("\nEnvironment set up successful.\n")
+}else {
+  if ("plotly" %in% names(which(x == FALSE))) {
+    message("Linux libraries missing. Try: \n")
+    message("   $ sudo apt-get update")
+    message("   $ sudo apt-get install libcurl4-openssl-dev")
+    message("   $ sudo apt-get install libssl-dev\n")
+    message("Then run env_setup.R again.")
+  }
+  
+  cat("\nNot all packages were installed successfully. Please see logfile_env.txt for details.")  
+}
 # sink()
 
 # OPTIONAL: DATA PREPARATION
 library(tibble); library(magrittr)
 
+# convertAndSave(datadir = "data", ip = "data/european-t1_clusters.csv", op = "tp1-clusters_for_nawc.tsv")
 convertAndSave <- function(datadir, ip, op) {
-  file.path(datadir, ip) %>% 
+  file.path(ip) %>% 
     read.csv(file = ., stringsAsFactors = FALSE, numerals = "no.loss") %>% 
     as_tibble() %>% 
     set_colnames(c("isolate", 1:(ncol(.)-1))) %>% 
     write.table(., file.path(datadir, op), row.names = FALSE, quote = FALSE, sep = "\t")  
 }
-
-# convertAndSave(datadir = "data", ip = "european-t1_clusters.csv", op = "european-t1-clusters_for_nawc.tsv")
-# convertAndSave(datadir = "data", ip = "european-t1_clusters.csv", op = "timepoint1.csv")
-# convertAndSave(datadir = "data", ip = "european-t2_clusters.csv", op = "timepoint2.csv")
 
 convertAndSave(datadir = input_args[1], ip = input_args[2], op = "tp1-clusters_for_nawc.tsv")
 convertAndSave(datadir = input_args[1], ip = input_args[2], op = "timepoint1.csv")
