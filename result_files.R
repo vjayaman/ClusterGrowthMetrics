@@ -21,47 +21,47 @@ option_list <- list(
 
 arg <- parse_args(OptionParser(option_list=option_list))
 
-oneHeightV2 <- function(h_i, novels, t2_composition, t1_composition) {
-  oneh <- readRDS(paste0("outputs/height_data/h", h_i, ".Rds")) %>%
-    left_join(., dfx, by = c("flag" = "first_flag")) %>%
-    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
-
-  # check: (no cluster numbers skipped) - none should be skipped by definition, but just in case
-  # identical(unique(oneh$tp1_cl), min(oneh$tp1_cl):max(oneh$tp1_cl))
-  
-  # first TP2 match for each TP1 cluster at this height
-  d2 <- oneh[diff(c(0, oneh$tp1_cl)) != 0,] %>% rename(tp1_id = id) %>% 
-    createID(., "tp2", "tp2_h", "tp2_cl") %>% rename(tp2_id = id)
-  
-  matched <- d2 %>% select(tp1_id, tp2_id)
-  
-  e2 <- t2_composition %>% select(id, composition) %>% rename(tp2_id = id, comp2 = composition)
-  
-  e1 <- t1_composition %>% select(id, composition) %>% rename(tp1_id = id, comp1 = composition) %>% 
-    filter(tp1_id %in% matched$tp1_id) %>% 
-    left_join(., matched, by = "tp1_id") %>% 
-    left_join(., e2, by = "tp2_id")
-  
-  did_not_change <- e1 %>% filter(comp1 == comp2) %>% select(tp1_id, tp2_id) %>% add_column(add_tp1 = 0)
-  chg <- e1 %>% filter(comp1 != comp2) %>% select(tp1_id, tp2_id)
-  
-  c1 <- lapply(1:nrow(chg), function(i) {
-    additionalTP1(b1, b2, chg$tp1_id[i], chg$tp2_id[i], novels)
-  }) %>% bind_rows(., did_not_change) %>% left_join(d2, ., by = c("tp1_id", "tp2_id"))
-  
-  c1 %>% 
-    add_column(
-      actual_size_change = (c1$tp2_cl_size - c1$tp1_cl_size), 
-      actual_growth_rate = ((c1$tp2_cl_size - c1$tp1_cl_size) / c1$tp1_cl_size) %>% round(., digits = 3),
-      new_growth = (c1$tp2_cl_size / (c1$tp2_cl_size - c1$num_novs)) %>% round(., digits = 3)) %>% 
-    rename(additional_tp1 = add_tp1) %>% 
-    select(tp1_id, tp1_h, tp1_cl, tp1_cl_size, flag, last_flag, tp2_id, tp2_h, tp2_cl, tp2_cl_size, 
-           additional_tp1, num_novs, actual_size_change, actual_growth_rate, new_growth) %>% 
-    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
-    leadingZeros(., "tp1_cl", "c") %>% leadingZeros(., "tp2_cl", "c") %>%
-    leadingZeros(., "tp1_h", "h", w = max(nchar(colnames(time1_raw)[-1]))) %>%
-    leadingZeros(., "tp2_h", "h", w = max(nchar(colnames(time2_raw)[-1]))) %>% return()
-}
+# oneHeightV2 <- function(h_i, novels, t2_composition, t1_composition) {
+#   oneh <- readRDS(paste0("outputs/height_data/h", h_i, ".Rds")) %>%
+#     left_join(., dfx, by = c("flag" = "first_flag")) %>%
+#     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
+# 
+#   # check: (no cluster numbers skipped) - none should be skipped by definition, but just in case
+#   # identical(unique(oneh$tp1_cl), min(oneh$tp1_cl):max(oneh$tp1_cl))
+#   
+#   # first TP2 match for each TP1 cluster at this height
+#   d2 <- oneh[diff(c(0, oneh$tp1_cl)) != 0,] %>% rename(tp1_id = id) %>% 
+#     createID(., "tp2", "tp2_h", "tp2_cl") %>% rename(tp2_id = id)
+#   
+#   matched <- d2 %>% select(tp1_id, tp2_id)
+#   
+#   e2 <- t2_composition %>% select(id, composition) %>% rename(tp2_id = id, comp2 = composition)
+#   
+#   e1 <- t1_composition %>% select(id, composition) %>% rename(tp1_id = id, comp1 = composition) %>% 
+#     filter(tp1_id %in% matched$tp1_id) %>% 
+#     left_join(., matched, by = "tp1_id") %>% 
+#     left_join(., e2, by = "tp2_id")
+#   
+#   did_not_change <- e1 %>% filter(comp1 == comp2) %>% select(tp1_id, tp2_id) %>% add_column(add_tp1 = 0)
+#   chg <- e1 %>% filter(comp1 != comp2) %>% select(tp1_id, tp2_id)
+#   
+#   c1 <- lapply(1:nrow(chg), function(i) {
+#     additionalTP1(b1, b2, chg$tp1_id[i], chg$tp2_id[i], novels)
+#   }) %>% bind_rows(., did_not_change) %>% left_join(d2, ., by = c("tp1_id", "tp2_id"))
+#   
+#   c1 %>% 
+#     add_column(
+#       actual_size_change = (c1$tp2_cl_size - c1$tp1_cl_size), 
+#       actual_growth_rate = ((c1$tp2_cl_size - c1$tp1_cl_size) / c1$tp1_cl_size) %>% round(., digits = 3),
+#       new_growth = (c1$tp2_cl_size / (c1$tp2_cl_size - c1$num_novs)) %>% round(., digits = 3)) %>% 
+#     rename(additional_tp1 = add_tp1) %>% 
+#     select(tp1_id, tp1_h, tp1_cl, tp1_cl_size, flag, last_flag, tp2_id, tp2_h, tp2_cl, tp2_cl_size, 
+#            additional_tp1, num_novs, actual_size_change, actual_growth_rate, new_growth) %>% 
+#     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
+#     leadingZeros(., "tp1_cl", "c") %>% leadingZeros(., "tp2_cl", "c") %>%
+#     leadingZeros(., "tp1_h", "h", w = max(nchar(colnames(time1_raw)[-1]))) %>%
+#     leadingZeros(., "tp2_h", "h", w = max(nchar(colnames(time2_raw)[-1]))) %>% return()
+# }
 
 # time1_raw <- readBaseData("data/timepoint1_data.csv", 1)
 # time2_raw <- readBaseData("data/timepoint2_data.csv", 2)
@@ -71,6 +71,12 @@ if (!is.null(arg$tp1)) {time1_raw <- readBaseData(arg$tp1, 1)}
 if (!is.null(arg$tp2)) {time2_raw <- readBaseData(arg$tp2, 2)}
 if (!is.null(arg$type)) {data_type <- arg$type}else {data_type <- NULL}
 if (!is.null(arg$height)) {height_choice <- arg$height}else {height_choice <- NULL}
+
+
+time1_raw <- readBaseData("data/timepoint1.csv", 1)
+time2_raw <- readBaseData("data/timepoint2.csv", 2)
+data_type <- "nawc"
+height_choice <- NULL
 
 if (!exists("time1_raw") | !exists("time2_raw")) {
   stop("No input successfully collected.")
@@ -111,6 +117,8 @@ b1 <- time1_raw %>% melt(id = "isolate") %>% as_tibble() %>% rename(tp1_cl = val
 
 b2 <- time2_raw %>% melt(id = "isolate") %>% as_tibble() %>% rename(tp2_cl = value, tp2_h = variable) %>% 
   mutate(across(tp2_h, as.character)) %>% createID(., "tp2", "tp2_h", "tp2_cl") %>% rename(tp2_id = id)
+
+
 
 if (is.null(data_type)) {
   
