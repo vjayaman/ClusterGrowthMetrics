@@ -1,9 +1,9 @@
 x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", 
        "stringr", "ggplot2", "plotly", "optparse", "shiny")
 lapply(x, require, character.only = TRUE)
-source("wallace.R")
-source("running_nawc.R")
-source("formattingdata.R")
+source("functions/wallace.R")
+source("functions/running_nawc.R")
+source("functions/formattingdata.R")
 
 compsSet <- function(tp_coded, tp, indicate_progress) {
   # sort the data and assign general labels
@@ -160,10 +160,19 @@ trackClusters <- function(hdata, t2_comps, t2names, t1_coded, t2_coded, indicate
 # but are found in the TP2 cluster (and are not novels)
 additionalTP1 <- function(b1, b2, id1, id2, novs) {
   tp1_isos <- b1 %>% filter(tp1_id == id1) %>% pull(isolate)
-  add_tp1 <- b2 %>% filter(tp2_id == id2) %>% pull(isolate) %>% 
-    setdiff(., c(tp1_isos, novs)) %>% length()
-  return(tibble(tp1_id = id1, tp2_id = id2, add_tp1))
+  tp2_isos <- b2 %>% filter(tp2_id == id2) %>% pull(isolate)
+  m1 <- length(tp1_isos)
+  m2 <- length(tp2_isos)
+  m2a <- length(which(tp2_isos %in% novs))
+  m2b <- length(which(tp2_isos %in% tp1_isos))
+  return(tibble(tp1_id = id1, tp2_id = id2, 
+                add_tp1 = m2 - m2a - m2b))
 }
+
+# h_i <- '5'
+# saveRDS(novels, "novels.Rds"); saveRDS(t1_comps, "t1_comps.Rds"); saveRDS(t2_comps, "t2_comps.Rds")
+# saveRDS(oneh, "oneh.Rds"); saveRDS(b1, "b1.Rds"); saveRDS(b2, "b2.Rds")
+# t1_composition <- t1_comps; t2_composition <- t2_comps
 
 oneHeight <- function(h_i, novels, t2_composition, t1_composition, oneh, b1, b2) {
   # check: (no cluster numbers skipped) - none should be skipped by definition, but just in case
@@ -175,17 +184,27 @@ oneHeight <- function(h_i, novels, t2_composition, t1_composition, oneh, b1, b2)
   matched <- d2 %>% select(tp1_id, tp2_id)
   
   e2 <- t2_composition %>% select(id, composition) %>% rename(tp2_id = id, comp2 = composition)
-  e1 <- t1_composition %>% select(id, composition) %>% rename(tp1_id = id, comp1 = composition) %>% 
-    filter(tp1_id %in% matched$tp1_id) %>% 
+  e1 <- t1_composition %>% select(id, composition) %>% rename(tp1_id = id, comp1 = composition)
+  
+  compmatches <- e1 %>% filter(tp1_id %in% matched$tp1_id) %>% 
     left_join(., matched, by = "tp1_id") %>% left_join(., e2, by = "tp2_id")
   
-  did_not_change <- e1 %>% filter(comp1 == comp2) %>% select(tp1_id, tp2_id) %>% add_column(add_tp1 = 0)
-  chg <- e1 %>% filter(comp1 != comp2) %>% select(tp1_id, tp2_id)
+  did_not_change <- compmatches %>% 
+    filter(comp1 == comp2) %>% 
+    select(tp1_id, tp2_id) %>% 
+    add_column(add_tp1 = 0)
+  chg <- compmatches %>% 
+    filter(comp1 != comp2) %>% 
+    select(tp1_id, tp2_id)
   
-  c1 <- lapply(1:nrow(chg), function(i) {
+  changed_additional <- lapply(1:nrow(chg), function(i) {
+    # w <- chg %>% filter(tp1_id == "TP1_h5_c11")
     additionalTP1(b1, b2, chg$tp1_id[i], chg$tp2_id[i], novels)
-  }) %>% bind_rows(., did_not_change) %>% left_join(d2, ., by = c("tp1_id", "tp2_id"))
+  }) %>% bind_rows()
   
+  c1 <- bind_rows(changed_additional, did_not_change) %>% 
+    left_join(d2, ., by = c("tp1_id", "tp2_id"))
+ 
   c1 %>% add_column(
     actual_size_change = (c1$tp2_cl_size - c1$tp1_cl_size), 
     actual_growth_rate = ((c1$tp2_cl_size - c1$tp1_cl_size) / c1$tp1_cl_size) %>% round(., digits = 3),

@@ -100,10 +100,8 @@ resultFiles <- function(df, op, heights) {
   write.csv(isolates_formatted, paste0(op, "TP1_strain_results.csv"), row.names = FALSE)
 }
 
-saveData <- function(dtype = 1, tmp = NULL, h = NULL) {
+saveData <- function(tmp = NULL, h = NULL) {
   if (!dir.exists("outputs")) {dir.create("outputs/height_data", recursive = TRUE)}
-  if (dtype == 3) {
-    saveRDS(tmp, paste0("outputs/height_data/h", h, ".Rds"))
-  }
+  saveRDS(tmp, paste0("outputs/height_data/h", h, ".Rds"))
 }
 
