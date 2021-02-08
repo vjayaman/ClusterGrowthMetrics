@@ -4,8 +4,8 @@ input_args = commandArgs(trailingOnly = TRUE)
 # 1) Rscript env_setup.R <output data directory> <time point 1 dataset> <time point 2 dataset> 
 #   - to install packages and set up required directory structure
 # 2) Rscript nawc.R -i data/tp1-clusters_for_nawc.tsv -o data
-# 3) Rscript datacollection.R data/timepoint1_data.csv data/timepoint2_data.csv
-# 4) Rscript result_files.R -a data/timepoint1_data.csv -b data/timepoint2_data.csv -t "nawc"
+#   - can use this script to identify the heights to plug into the following:
+# 3) Rscript datacollection.R -a "data/timepoint1_data.csv" -b "data/timepoint2_data.csv" -x "5,10,15,20"
 
 # This should be run first, to make sure the required packages are installed
 msg <- file("logfile_env.txt", open="wt")
@@ -52,8 +52,7 @@ library(tibble); library(magrittr)
 # convertAndSave(datadir = "data", ip = "data/european-t1_clusters.csv", op = "tp1-clusters_for_nawc.tsv")
 convertAndSave <- function(datadir, ip, op) {
   file.path(ip) %>% 
-    read.csv(file = ., stringsAsFactors = FALSE, numerals = "no.loss") %>% 
-    as_tibble() %>% 
+    read.csv(file = ., stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble() %>% 
     set_colnames(c("isolate", 1:(ncol(.)-1))) %>% 
     write.table(., file.path(datadir, op), row.names = FALSE, quote = FALSE, sep = "\t")  
 }
