@@ -26,26 +26,23 @@ There are two methods for running this script, method 1 uses command line and me
 Method 1
 ----------
 
-To run the cluster growth metrics script from a **terminal**, navigate to the directory, then run: 
-```sh
-Rscript env_setup.R *<input data directory>* *<time point 1 dataset>* *<time point 2 dataset>*
+To run the cluster growth metrics script from a **terminal**, navigate to the directory, then run: Rscript env_setup.R *<input data directory>* *<time point 1 dataset>* *<time point 2 dataset>*
 
-e.g. $ Rscript env_setup.R "Desktop/inputs/" "tp1.csv" "tp2.csv"
+```sh
+e.g. $ Rscript env_setup.R "Desktop/inputs/" "tp1_bef_processing.csv" "tp2_bef_processing.csv"
 ```
 Check `logfile_env.txt` if there are any issues, or if the script stops without a success message. 
 
-After the relevant packages and data directories are set up, run the following. Input the full file paths, down to the file name extensions (no quotations necessary). They should be csvs (for now, allowing other file formats in the future is a WIP). 
-```sh
-Rscript datacollection.R -a *<time point 1 file path>* -b *<time point 2 file path>* -x *<comma-delimited list of thresholds to run>*
+After the relevant packages and data directories are set up, run the following. Input the full file paths, down to the file name extensions (no quotations necessary). They should be csvs (for now, allowing other file formats in the future is a WIP): Rscript datacollection.R -a *<time point 1 file path>* -b *<time point 2 file path>* -x *<comma-delimited list of thresholds to run>*
 
+```sh
 e.g. $ Rscript datacollection.R -a "data/tp1.csv" -b "data/tp2.csv" -x "5,10,25,30"
 ```
 Progress bars will appear, and tracked cluster information will be saved to a file in a newly generated "outputs" directory. Check `logfile_datacollection.txt` if anything stops abruptly, or if you do not see a success message after the script stops running.
 
-The next (optional) step is to run: 
-```sh
-Rscript tests/sampled_testing.R *<time point 1 data>* *<time point 2 data>* *<decimal (percent of clusters to sample for testing at each threshold)>*
+The next (optional) step is to run: Rscript tests/sampled_testing.R *<time point 1 data>* *<time point 2 data>* *<decimal (percent of clusters to sample for testing at each threshold)>*
 
+```sh
 e.g. $ Rscript tests/sampled_testing.R "data/tp1.csv" "data/tp2.csv" 0.25
 ```
 
@@ -57,7 +54,7 @@ source("env_setup.R")
 ```
 After the environment is set up, open `datacollection.R` and update the filename input variables ("time1\_raw" and "time2\_raw"), to hold the paths of the datasets you want to use as input (they should hold time point 1 and time point 2 data, respectively).  Then run: 
 
-**(Working on documenting this)**
+**(Working on making this part simpler, with fewer dependencies)**
 
 By default all output files will be saved to an *outputs* directory, which will be created if it does not already exist. To change this, see the `saveData()` function in *functions/processing_functions.R*.
 
