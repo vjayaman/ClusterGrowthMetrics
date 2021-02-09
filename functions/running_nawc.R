@@ -1,3 +1,5 @@
+# modifications made for this project, using scripts from: 
+#   https://github.com/dorbarker/nAWC
 
 shannon <- compiler::cmpfun(function(clusters, base=2) {
   # Calculates the Shannon Entropy for a group of clusters uses base 2, returning bits by default

@@ -169,11 +169,6 @@ additionalTP1 <- function(b1, b2, id1, id2, novs) {
                 add_tp1 = m2 - m2a - m2b))
 }
 
-# h_i <- '5'
-# saveRDS(novels, "novels.Rds"); saveRDS(t1_comps, "t1_comps.Rds"); saveRDS(t2_comps, "t2_comps.Rds")
-# saveRDS(oneh, "oneh.Rds"); saveRDS(b1, "b1.Rds"); saveRDS(b2, "b2.Rds")
-# t1_composition <- t1_comps; t2_composition <- t2_comps
-
 oneHeight <- function(h_i, novels, t2_composition, t1_composition, oneh, b1, b2) {
   # check: (no cluster numbers skipped) - none should be skipped by definition, but just in case
   # identical(unique(oneh$tp1_cl), min(oneh$tp1_cl):max(oneh$tp1_cl))
@@ -198,7 +193,6 @@ oneHeight <- function(h_i, novels, t2_composition, t1_composition, oneh, b1, b2)
     select(tp1_id, tp2_id)
   
   changed_additional <- lapply(1:nrow(chg), function(i) {
-    # w <- chg %>% filter(tp1_id == "TP1_h5_c11")
     additionalTP1(b1, b2, chg$tp1_id[i], chg$tp2_id[i], novels)
   }) %>% bind_rows()
   
@@ -214,7 +208,7 @@ oneHeight <- function(h_i, novels, t2_composition, t1_composition, oneh, b1, b2)
            additional_tp1, num_novs, actual_size_change, actual_growth_rate, new_growth) %>% 
     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
     leadingZeros(., "tp1_cl", "c") %>% leadingZeros(., "tp2_cl", "c") %>%
-    leadingZeros(., "tp1_h", "h", w = max(nchar(colnames(time1_raw)[-1]))) %>%
-    leadingZeros(., "tp2_h", "h", w = max(nchar(colnames(time2_raw)[-1]))) %>% return()
+    leadingZeros(., "tp1_h", "h", w = nchar(max(t1_composition$tp1_h))) %>%
+    leadingZeros(., "tp2_h", "h", w = nchar(max(t2_composition$tp2_h))) %>% return()
 }
 

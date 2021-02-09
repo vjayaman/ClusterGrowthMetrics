@@ -1,3 +1,5 @@
+# functions from nAWC project at https://github.com/dorbarker/nAWC
+
 get_abcdn <- function(v1, v2)
 {
     cross_tab <- as.matrix(table(v1, v2))

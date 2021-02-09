@@ -77,7 +77,7 @@ readBaseData <- function(filename, file_number) {
   }
 }
 
-resultFiles <- function(df, op, heights) {
+resultFiles <- function(df, op, heights, time1_raw) {
   clusters_formatted <- df %>% set_colnames(c(
     "TP1 ID", "TP1 height", "TP1 cluster", "TP1 cluster size", "First time this cluster was seen in TP1", 
     "Last time this cluster was seen in TP1", "First time this cluster was seen in TP2", "TP2 height", 
@@ -105,3 +105,12 @@ saveData <- function(tmp = NULL, h = NULL) {
   saveRDS(tmp, paste0("outputs/height_data/h", h, ".Rds"))
 }
 
+meltedIDs <- function(df, k) {
+  cnames <- paste0("tp", k, c("", "_h", "_cl", "_id"))
+  df %>% 
+    melt(id = "isolate") %>% as_tibble() %>% 
+    set_colnames(c("isolate", cnames[2:3])) %>% 
+    mutate(across(cnames[2], as.character)) %>% 
+    createID(., cnames[1], cnames[2], cnames[3]) %>% 
+    set_colnames(c("isolate", cnames[2:4])) %>% return()
+}
