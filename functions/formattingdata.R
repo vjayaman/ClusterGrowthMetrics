@@ -88,13 +88,17 @@ resultFiles <- function(df, op, heights, time1_raw) {
   
   write.csv(clusters_formatted, paste0(op,"TP1_cluster_results.csv"), row.names = FALSE)
   
-  isolates_formatted <- time1_raw %>% select(isolate, as.character(heights)) %>% 
+  isolates_formatted <- time1_raw %>% 
+    select(isolate, as.character(heights)) %>% 
     melt(., id = "isolate") %>% as_tibble() %>% 
     rename(tp1_h = variable, tp1_cl = value) %>% 
-    mutate(across(tp1_h, as.character)) %>% mutate(across(tp1_h, as.integer)) %>% 
-    leadingZeros(., "tp1_h", "h") %>% leadingZeros(., "tp1_cl", "c") %>% 
+    mutate(across(tp1_h, as.character)) %>%
+    mutate(across(tp1_h, as.integer)) %>% 
+    leadingZeros(., "tp1_h", "h") %>% 
+    leadingZeros(., "tp1_cl", "c") %>% 
     right_join(., df, by = c("tp1_h", "tp1_cl")) %>% 
-    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% select(isolate, colnames(df)) %>% 
+    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
+    select(isolate, colnames(df)) %>% 
     set_colnames(c("Isolates", colnames(clusters_formatted)))
   
   write.csv(isolates_formatted, paste0(op, "TP1_strain_results.csv"), row.names = FALSE)

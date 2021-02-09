@@ -15,8 +15,8 @@ outputDetails(paste0("\n||---------------- Testing results ----------------||\n"
 time1_raw <- input_args[1] %>% readBaseData(., 1)
 time2_raw <- input_args[2] %>% readBaseData(., 2)
 percent_clusters <- as.double(input_args[3])
-# time1_raw <- readBaseData("data/timepoint1.csv", 1)
-# time2_raw <- readBaseData("data/timepoint2.csv", 2); percent_clusters <- 0.25
+# time1_raw <- readBaseData("data/tp1.tsv", 1)
+# time2_raw <- readBaseData("data/tp2.tsv", 2); percent_clusters <- 0.01
 outputDetails("Part 1/3 - data prep ...", newcat = TRUE)
 
 # the TP1 cluster assignments
@@ -44,20 +44,21 @@ b2 <- t2_melted %>% group_by(tp2_id) %>%
 novels <- setdiff(b2$isolate, b1$isolate)
 
 # going to run the test for every TP1 threshold
-collected_data <- read.csv(file = "outputs/summary/TP1_cluster_results.csv", 
-                           stringsAsFactors = FALSE, numerals = "no.loss") %>% 
-  as_tibble() %>% select(2, 3, 4, 8, 9, 10, 11, 12, 13) %>% 
-  set_colnames(c("tp1_h", "tp1_cl", "tp1_cl_size", "tp2_h", "tp2_cl", 
-                 "tp2_cl_size", "add_TP1", "num_nov", "size_change")) %>% 
-  mutate(across(tp2_cl_size, as.integer)) %>% 
-  arrange(tp1_cl, tp2_h, tp2_cl)
+dc_data <- read.csv(file = "outputs/summary/TP1_cluster_results.csv", 
+                    stringsAsFactors = FALSE, numerals = "no.loss") %>% 
+  set_colnames(c("tp1_id", "tp1_h", "tp1_cl", "tp1_cl_size", 
+                 "first_tp1", "last_tp1", "first_tp2", "tp2_h", 
+                 "tp2_cl", "tp2_cl_size", "add_TP1", "num_nov", 
+                 "size_change", "growth", "corrected")) %>% as_tibble()
+dc_data$tp1_h %<>% charToInt(., "h")
+dc_data$tp1_cl %<>% charToInt(., "c")
+dc_data$tp2_h %<>% charToInt(., "h")
+dc_data$tp2_cl %<>% charToInt(., "c")
 
-collected_data$tp1_h %<>% charToInt(., "h")
-collected_data$tp1_cl %<>% charToInt(., "c")
-collected_data$tp2_h %<>% charToInt(., "h")
-collected_data$tp2_cl %<>% charToInt(., "c")
+collected <- dc_data %>% as_tibble() %>% select(2, 3, 4, 8, 9, 10, 11, 12, 13) %>% 
+  mutate(across(tp2_cl_size, as.integer)) %>% arrange(tp1_cl, tp2_h, tp2_cl)
 
-heights <- collected_data$tp1_h %>% unique()
+heights <- collected$tp1_h %>% unique()
 
 # how many clusters is 5% of those at each threshold?
 # we will sample and test this many clusters
@@ -121,7 +122,7 @@ for (x in heights) {
 
   # Part 2: Extracting the collected tracking and growth data for the given height, then filtering 
   #         and sorting so we will only compare for 100 randomly selected clusters at this height
-  cd <- collected_data %>% filter(tp1_h == x) %>% filter(tp1_cl %in% sampled_clusters)
+  cd <- collected %>% filter(tp1_h == x) %>% filter(tp1_cl %in% sampled_clusters)
   
   # Part 4: If our collected data is the same as the actual matching (for these 100 
   #         clusters), then we move onto the next height.
@@ -137,6 +138,16 @@ for (x in heights) {
                          toString(sampled_clusters)), newcat = TRUE)
   }
 }
+
+other_cols <- dc_data %>% select(-tp1_cl_size, -tp2_cl_size, -add_TP1, -num_nov, -size_change)
+id1_col <- paste0("TP1_h", other_cols$tp1_h, "_c", other_cols$tp1_cl)
+if (!identical(other_cols$tp1_id, id1_col)) {outputDetails("TP1 IDs are incorrect", newcat = TRUE)}
+
+id2_col <- paste0("TP2_h", other_cols$tp2_h, "_c", other_cols$tp2_cl)
+if (!identical(other_cols$first_tp2, id2_col)) {outputDetails("TP2 IDs are incorrect", newcat = TRUE)}
+
+# # see tracking_functions.R --> oneHeight() to verify calculation of these columns:
+# other_cols <- other_cols %>% select(-tp1_h, -tp1_cl, -tp2_h, -tp2_cl)
 
 outputDetails(paste0("\n||---------------- Testing results ----------------||\n", 
                      "Finished process at: ", Sys.time()))

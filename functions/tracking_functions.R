@@ -168,14 +168,6 @@ additionalTP1 <- function(b1, b2, id1, id2, novs) {
   return(tibble(tp1_id = id1, tp2_id = id2, add_tp1 = m2 - m2a - m2b))
 }
 
-# oneh <- readRDS(paste0("outputs/height_data/", hfiles$f[i])) %>% 
-#   left_join(., a2, by = c("tp1_h", "tp1_cl", "id")) %>% 
-#   arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
-# h_i <- hfiles$h[i]
-# t2_composition <- tpt2@comps
-# t1_composition <- tpt1@comps
-# b1 <- tpt1@melted
-# b2 <- tpt2@melted
 oneHeight <- function(h_i, novels, t1_composition, t2_composition, oneh, b1, b2) {
   # check: (no cluster numbers skipped) - none should be skipped by definition, but just in case
   # identical(unique(oneh$tp1_cl), min(oneh$tp1_cl):max(oneh$tp1_cl))
@@ -191,13 +183,10 @@ oneHeight <- function(h_i, novels, t1_composition, t2_composition, oneh, b1, b2)
   compmatches <- e1 %>% filter(tp1_id %in% matched$tp1_id) %>% 
     left_join(., matched, by = "tp1_id") %>% left_join(., e2, by = "tp2_id")
   
-  did_not_change <- compmatches %>% 
-    filter(comp1 == comp2) %>% 
-    select(tp1_id, tp2_id) %>% 
-    add_column(add_tp1 = 0)
-  chg <- compmatches %>% 
-    filter(comp1 != comp2) %>% 
-    select(tp1_id, tp2_id)
+  did_not_change <- compmatches %>% filter(comp1 == comp2) %>% 
+    select(tp1_id, tp2_id) %>% add_column(add_tp1 = 0)
+  
+  chg <- compmatches %>% filter(comp1 != comp2) %>% select(tp1_id, tp2_id)
   
   novs <- setdiff(b2$isolate, b1$isolate) %>% unique()
   changed_additional <- lapply(1:nrow(chg), function(i) {

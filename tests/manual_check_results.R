@@ -1,13 +1,13 @@
 #! /usr/bin/env Rscript
-# input_args = commandArgs(trailingOnly = TRUE)
+input_args = commandArgs(trailingOnly = TRUE)
 
 suppressWarnings(suppressPackageStartupMessages(source("functions/tracking_functions.R")))
 
-# time1_raw <- readBaseData(input_args[1], 1) # "data/timepoint1_data.csv"
-# time2_raw <- readBaseData(input_args[2], 2) # "data/timepoint2_data.csv"
+time1_raw <- readBaseData(input_args[1], 1) # "data/timepoint1_data.csv"
+time2_raw <- readBaseData(input_args[2], 2) # "data/timepoint2_data.csv"
 
-time1_raw <- readBaseData("data/timepoint1.csv", 1)
-time2_raw <- readBaseData("data/timepoint2.csv", 2)
+# time1_raw <- readBaseData("data/timepoint1.csv", 1)
+# time2_raw <- readBaseData("data/timepoint2.csv", 2)
 
 collected_data <- read.csv(file = "outputs/summary/TP1_cluster_results.csv", 
                            stringsAsFactors = FALSE, numerals = "no.loss") %>% 

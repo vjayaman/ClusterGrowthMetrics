@@ -51,11 +51,16 @@ library(tibble); library(magrittr)
 
 # convertAndSave(datadir = "data", ip = "data/european-t1_clusters.csv", op = "tp1-clusters_for_nawc.tsv")
 convertAndSave <- function(datadir, ip, op) {
-  file.path(ip) %>% 
-    read.csv(file = ., stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble() %>% 
-    set_colnames(c("isolate", 1:(ncol(.)-1))) %>% 
-    write.table(., file.path(datadir, op), row.names = FALSE, quote = FALSE, sep = "\t")  
+  # ip <- "data/european-t1_clusters.csv"; datadir <- "data"; op <- "tp1.tsv"
+  df <- read.csv(ip, stringsAsFactors = FALSE, sep = ",", numerals = "no.loss") %>% as_tibble()
+  m1 <- ncol(df)-2
+  df %>% set_colnames(c("isolate", 0:m1)) %>% 
+    write.table(., file.path(datadir, op), row.names = FALSE, quote = FALSE, sep = "\t")
+    # write.csv(., file.path(datadir, op), row.names = FALSE)
+    # write.table(., file.path(datadir, op), row.names = FALSE, quote = FALSE, sep = "\t")
 }
+# convertAndSave("data", "data/european-t1_clusters.csv", op = "tp1.tsv")
+# convertAndSave("data", "data/european-t2_clusters.csv", op = "tp2.tsv")
 
 # convertAndSave(datadir = input_args[1], ip = input_args[2], op = "tp1-clusters_for_nawc.tsv")
 convertAndSave(datadir = input_args[1], ip = input_args[2], op = "timepoint1.csv")

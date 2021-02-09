@@ -31,11 +31,8 @@ outputDetails(paste0("\nPART 1 OF 3: Data processing ", paste0(rep(".", 66), col
                      "  Preparing data for processing\n  Loading and formatting datafiles..."), 
               newcat = TRUE)
 
-# tpt1 <- new("timedata", name = "tp1", raw = readBaseData(arg$tp1, 1))
-# tpt2 <- new("timedata", name = "tp2", raw = readBaseData(arg$tp2, 2))
-
-tpt1 <- new("timedata", name = "tp1", raw = readBaseData("data/timepoint1.csv", 1))
-tpt2 <- new("timedata", name = "tp2", raw = readBaseData("data/timepoint2.csv", 2))
+tpt1 <- new("timedata", name = "tp1", raw = readBaseData(arg$tp1, 1))
+tpt2 <- new("timedata", name = "tp2", raw = readBaseData(arg$tp2, 2))
 
 message("  Successfully read in datafiles")
 all_isolates <- c(tpt1@raw$isolate, tpt2@raw$isolate) %>% unique() %>% 
@@ -72,8 +69,8 @@ outputDetails(paste0("\nPART 2 OF 3: Tracking and flagging clusters for base cas
 
 # this should be '1', the first column is the isolates
 outputDetails("  Tracking clusters", newcat = TRUE)
-heights <- strsplit(arg$heights, split = ",") %>% unlist()
-# heights <- strsplit("5,10,25,50,75", split = ",") %>% unlist()
+heights <- strsplit(arg$heights, split = ",") %>% unlist() # "0,5,25"
+
 outputDetails(paste0("  Collecting height data for base case, height ", heights[1], "..."), newcat = TRUE)
 
 hx <- new("heightdata", h_before = heights[1])
