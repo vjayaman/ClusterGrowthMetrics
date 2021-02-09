@@ -1,5 +1,5 @@
 x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", 
-       "stringr", "ggplot2", "plotly", "optparse", "shiny", "methods")
+       "stringr", "ggplot2", "plotly", "optparse", "methods")
 lapply(x, require, character.only = TRUE)
 source("functions/wallace.R")
 source("functions/running_nawc.R")

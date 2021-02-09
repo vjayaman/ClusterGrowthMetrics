@@ -57,7 +57,7 @@ convertAndSave <- function(datadir, ip, op) {
     write.table(., file.path(datadir, op), row.names = FALSE, quote = FALSE, sep = "\t")  
 }
 
-convertAndSave(datadir = input_args[1], ip = input_args[2], op = "tp1-clusters_for_nawc.tsv")
+# convertAndSave(datadir = input_args[1], ip = input_args[2], op = "tp1-clusters_for_nawc.tsv")
 convertAndSave(datadir = input_args[1], ip = input_args[2], op = "timepoint1.csv")
 convertAndSave(datadir = input_args[1], ip = input_args[3], op = "timepoint2.csv")
 
