@@ -31,8 +31,11 @@ outputDetails(paste0("\nPART 1 OF 3: Data processing ", paste0(rep(".", 66), col
                      "  Preparing data for processing\n  Loading and formatting datafiles..."), 
               newcat = TRUE)
 
-tpt1 <- new("timedata", name = "tp1", raw = readBaseData(arg$tp1, 1))
-tpt2 <- new("timedata", name = "tp2", raw = readBaseData(arg$tp2, 2))
+# tpt1 <- new("timedata", name = "tp1", raw = readBaseData(arg$tp1, 1))
+# tpt2 <- new("timedata", name = "tp2", raw = readBaseData(arg$tp2, 2))
+
+tpt1 <- new("timedata", name = "tp1", raw = readBaseData("data/timepoint1.csv", 1))
+tpt2 <- new("timedata", name = "tp2", raw = readBaseData("data/timepoint2.csv", 2))
 
 message("  Successfully read in datafiles")
 all_isolates <- c(tpt1@raw$isolate, tpt2@raw$isolate) %>% unique() %>% 
@@ -70,7 +73,7 @@ outputDetails(paste0("\nPART 2 OF 3: Tracking and flagging clusters for base cas
 # this should be '1', the first column is the isolates
 outputDetails("  Tracking clusters", newcat = TRUE)
 heights <- strsplit(arg$heights, split = ",") %>% unlist()
-
+# heights <- strsplit("5,10,25,50,75", split = ",") %>% unlist()
 outputDetails(paste0("  Collecting height data for base case, height ", heights[1], "..."), newcat = TRUE)
 
 hx <- new("heightdata", h_before = heights[1])
@@ -158,7 +161,7 @@ lapply(1:nrow(hfiles), function(i) {
   readRDS(paste0("outputs/height_data/", hfiles$f[i])) %>% 
     left_join(., a2, by = c("tp1_h", "tp1_cl", "id")) %>% 
     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
-    oneHeight(hfiles$h[i], novels, tpt2@comps, tpt1@comps, ., tpt1@melted, tpt2@melted) %>% return()
+    oneHeight(hfiles$h[i], novels, tpt1@comps, tpt2@comps, ., tpt1@melted, tpt2@melted)# %>% return()
 }) %>% bind_rows() %>% 
   resultFiles(., op, heights, tpt1@raw)
 

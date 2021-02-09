@@ -1,5 +1,5 @@
 x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", 
-       "stringr", "ggplot2", "plotly", "optparse", "shiny")
+       "stringr", "ggplot2", "plotly", "optparse", "shiny", "methods")
 lapply(x, require, character.only = TRUE)
 source("functions/wallace.R")
 source("functions/running_nawc.R")
@@ -159,17 +159,24 @@ trackClusters <- function(hdata, t2_comps, t2names, t1_coded, t2_coded, indicate
 # additional TP1s are the TP1 strains that were not found in the TP1 cluster, 
 # but are found in the TP2 cluster (and are not novels)
 additionalTP1 <- function(b1, b2, id1, id2, novs) {
+  # id1 <- w$tp1_id[i]; id2 <- w$tp2_id[i]; novs <- novels
   tp1_isos <- b1 %>% filter(tp1_id == id1) %>% pull(isolate)
   tp2_isos <- b2 %>% filter(tp2_id == id2) %>% pull(isolate)
-  m1 <- length(tp1_isos)
   m2 <- length(tp2_isos)
   m2a <- length(which(tp2_isos %in% novs))
   m2b <- length(which(tp2_isos %in% tp1_isos))
-  return(tibble(tp1_id = id1, tp2_id = id2, 
-                add_tp1 = m2 - m2a - m2b))
+  return(tibble(tp1_id = id1, tp2_id = id2, add_tp1 = m2 - m2a - m2b))
 }
 
-oneHeight <- function(h_i, novels, t2_composition, t1_composition, oneh, b1, b2) {
+# oneh <- readRDS(paste0("outputs/height_data/", hfiles$f[i])) %>% 
+#   left_join(., a2, by = c("tp1_h", "tp1_cl", "id")) %>% 
+#   arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
+# h_i <- hfiles$h[i]
+# t2_composition <- tpt2@comps
+# t1_composition <- tpt1@comps
+# b1 <- tpt1@melted
+# b2 <- tpt2@melted
+oneHeight <- function(h_i, novels, t1_composition, t2_composition, oneh, b1, b2) {
   # check: (no cluster numbers skipped) - none should be skipped by definition, but just in case
   # identical(unique(oneh$tp1_cl), min(oneh$tp1_cl):max(oneh$tp1_cl))
   
@@ -192,8 +199,9 @@ oneHeight <- function(h_i, novels, t2_composition, t1_composition, oneh, b1, b2)
     filter(comp1 != comp2) %>% 
     select(tp1_id, tp2_id)
   
+  novs <- setdiff(b2$isolate, b1$isolate) %>% unique()
   changed_additional <- lapply(1:nrow(chg), function(i) {
-    additionalTP1(b1, b2, chg$tp1_id[i], chg$tp2_id[i], novels)
+    additionalTP1(b1, b2, chg$tp1_id[i], chg$tp2_id[i], novs)
   }) %>% bind_rows()
   
   c1 <- bind_rows(changed_additional, did_not_change) %>% 
