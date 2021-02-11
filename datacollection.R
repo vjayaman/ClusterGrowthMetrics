@@ -67,7 +67,7 @@ tpt2@comps$num_novs[is.na(tpt2@comps$num_novs)] <- 0
 outputDetails(paste0("\nPART 2 OF 3: Tracking and flagging clusters for base case ", 
                      paste0(rep(".", 41), collapse = "")), newcat = TRUE)
 
-# this should be '1', the first column is the isolates
+# this should be '0', the first column is the isolates
 outputDetails("  Tracking clusters", newcat = TRUE)
 heights <- strsplit(arg$heights, split = ",") %>% unlist() # "0,5,25"
 
@@ -154,13 +154,19 @@ hfiles <- lapply(heights, function(h) {
 }) %>% bind_rows()
 
 outputDetails("  Saving the data in two separate files, with cluster and strain identifiers.", newcat = TRUE)
-lapply(1:nrow(hfiles), function(i) {
+datafiles <- lapply(1:nrow(hfiles), function(i) {
   readRDS(paste0("outputs/height_data/", hfiles$f[i])) %>% 
     left_join(., a2, by = c("tp1_h", "tp1_cl", "id")) %>% 
     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
-    oneHeight(hfiles$h[i], novels, tpt1@comps, tpt2@comps, ., tpt1@melted, tpt2@melted)# %>% return()
-}) %>% bind_rows() %>% 
-  resultFiles(., op, heights, tpt1@raw)
+    oneHeight(hfiles$h[i], novels, tpt1@comps, tpt2@comps, ., tpt1@melted, tpt2@melted) %>% return()
+}) %>% bind_rows()
+
+datafiles$actual_growth_rate %<>% format(., digits = 3, nsmall = 3)
+datafiles$new_growth %<>% format(., digits = 3, nsmall = 3)
+# df <- datafiles
+# datafiles$actual_growth_rate %<>% as.character()
+# datafiles$new_growth %<>% as.character()
+resultFiles(datafiles, op, heights, tpt1@raw, tpt1@melted)
 
 stopwatch[2] <- Sys.time()
 timeTaken(pt = "data collection", stopwatch) %>% outputDetails(., newcat = TRUE)

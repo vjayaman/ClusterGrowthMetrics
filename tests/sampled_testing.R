@@ -15,6 +15,7 @@ outputDetails(paste0("\n||---------------- Testing results ----------------||\n"
 time1_raw <- input_args[1] %>% readBaseData(., 1)
 time2_raw <- input_args[2] %>% readBaseData(., 2)
 percent_clusters <- as.double(input_args[3])
+test_file <- input_args[4] # "outputs/summary/TP1_cluster_results.csv"
 # time1_raw <- readBaseData("data/tp1.tsv", 1)
 # time2_raw <- readBaseData("data/tp2.tsv", 2); percent_clusters <- 0.01
 outputDetails("Part 1/3 - data prep ...", newcat = TRUE)
@@ -44,7 +45,7 @@ b2 <- t2_melted %>% group_by(tp2_id) %>%
 novels <- setdiff(b2$isolate, b1$isolate)
 
 # going to run the test for every TP1 threshold
-dc_data <- read.csv(file = "outputs/summary/TP1_cluster_results.csv", 
+dc_data <- read.csv(file = test_file, 
                     stringsAsFactors = FALSE, numerals = "no.loss") %>% 
   set_colnames(c("tp1_id", "tp1_h", "tp1_cl", "tp1_cl_size", 
                  "first_tp1", "last_tp1", "first_tp2", "tp2_h", 

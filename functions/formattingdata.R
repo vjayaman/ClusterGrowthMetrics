@@ -77,16 +77,21 @@ readBaseData <- function(filename, file_number) {
   }
 }
 
-resultFiles <- function(df, op, heights, time1_raw) {
+resultFiles <- function(df, op, heights, time1_raw, t1_melted) {
   clusters_formatted <- df %>% set_colnames(c(
-    "TP1 ID", "TP1 height", "TP1 cluster", "TP1 cluster size", "First time this cluster was seen in TP1", 
-    "Last time this cluster was seen in TP1", "First time this cluster was seen in TP2", "TP2 height", 
-    "TP2 cluster", "TP2 cluster size", "Number of additional TP1 strains in the TP2 match", 
+    "TP1 ID", "TP1 height", "TP1 cluster", "TP1 cluster size", 
+    "First time this cluster was seen in TP1", "Last time this cluster was seen in TP1", 
+    "First time this cluster was seen in TP2", 
+    "TP2 height", "TP2 cluster", "TP2 cluster size", "Number of additional TP1 strains in the TP2 match", 
     "Number of novels in the TP2 match", "Actual cluster size change (TP2 size - TP1 size)",
-    "Actual growth rate = (TP2 size - TP1 size) / (TP1 size)", "Number of novels / Actual growth rate", 
+    "Actual growth rate = (TP2 size - TP1 size) / (TP1 size)", 
     "Novel growth = (TP2 size) / (TP2 size - number of novels)"))
   
-  write.csv(clusters_formatted, paste0(op,"TP1_cluster_results.csv"), row.names = FALSE)
+  write.table(clusters_formatted, paste0(op,"TP1_cluster_results.txt"), row.names = FALSE, quote = FALSE, sep = "\t")
+  # write.csv(clusters_formatted, paste0(op,"TP1_cluster_results.tsv"), row.names = FALSE)
+  
+  m1 <- t1_melted$tp1_h %>% as.integer() %>% max() %>% nchar()
+  m2 <- t1_melted$tp1_cl %>% as.integer() %>% max() %>% nchar()
   
   isolates_formatted <- time1_raw %>% 
     select(isolate, as.character(heights)) %>% 
@@ -94,14 +99,15 @@ resultFiles <- function(df, op, heights, time1_raw) {
     rename(tp1_h = variable, tp1_cl = value) %>% 
     mutate(across(tp1_h, as.character)) %>%
     mutate(across(tp1_h, as.integer)) %>% 
-    leadingZeros(., "tp1_h", "h") %>% 
-    leadingZeros(., "tp1_cl", "c") %>% 
+    leadingZeros(., "tp1_h", "h", m1) %>% 
+    leadingZeros(., "tp1_cl", "c", m2) %>% 
     right_join(., df, by = c("tp1_h", "tp1_cl")) %>% 
     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
     select(isolate, colnames(df)) %>% 
     set_colnames(c("Isolates", colnames(clusters_formatted)))
   
-  write.csv(isolates_formatted, paste0(op, "TP1_strain_results.csv"), row.names = FALSE)
+  write.table(isolates_formatted, paste0(op, "TP1_strain_results.txt"), row.names = FALSE, quote = FALSE, sep = "\t")
+  # write.csv(isolates_formatted, paste0(op, "TP1_strain_results.tsv"), row.names = FALSE)
 }
 
 saveData <- function(tmp = NULL, h = NULL) {
