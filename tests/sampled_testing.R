@@ -1,5 +1,4 @@
 #! /usr/bin/env Rscript
-input_args = commandArgs(trailingOnly = TRUE)
 
 msg <- file(paste0("outputs/", "logfile_testing.txt"), open="wt")
 sink(msg, type="message")
@@ -12,12 +11,21 @@ stopwatch[1] <- Sys.time()
 outputDetails(paste0("\n||---------------- Testing results ----------------||\n", 
                      "Started process at: ", Sys.time()), newcat = TRUE)
 
-time1_raw <- input_args[1] %>% readBaseData(., 1)
-time2_raw <- input_args[2] %>% readBaseData(., 2)
-percent_clusters <- as.double(input_args[3])
-test_file <- input_args[4] # "outputs/summary/TP1_cluster_results.csv"
-# time1_raw <- readBaseData("data/tp1.tsv", 1)
-# time2_raw <- readBaseData("data/tp2.tsv", 2); percent_clusters <- 0.01
+option_list <- list(
+  make_option(c("-a", "--tp1"), metavar = "file", default = NULL, help = "Time point 1 file name"),
+  make_option(c("-b", "--tp2"), metavar = "file", default = NULL, help = "Time point 2 file name"), 
+  make_option(c("-p", "--percent", metavar = "decimal", default = 0.25, 
+                help = "Proportion of clusters per threshold to test")), 
+  make_option(c("-t", "--test"), metavar = "file", default = NULL, help = "Output file to test"))
+
+arg <- parse_args(OptionParser(option_list=option_list))
+
+time1_raw <- readBaseData(arg$tp1, 1)
+time2_raw <- readBaseData(arg$tp2, 2)
+
+percent_clusters <- as.double(arg$percent)
+test_file <- arg$test # "outputs/summary/TP1_cluster_results.csv"
+
 outputDetails("Part 1/3 - data prep ...", newcat = TRUE)
 
 # the TP1 cluster assignments

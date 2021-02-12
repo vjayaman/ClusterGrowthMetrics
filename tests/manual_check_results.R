@@ -1,13 +1,15 @@
 #! /usr/bin/env Rscript
-input_args = commandArgs(trailingOnly = TRUE)
 
 suppressWarnings(suppressPackageStartupMessages(source("functions/tracking_functions.R")))
 
-time1_raw <- readBaseData(input_args[1], 1) # "data/timepoint1_data.csv"
-time2_raw <- readBaseData(input_args[2], 2) # "data/timepoint2_data.csv"
+option_list <- list(
+  make_option(c("-a", "--tp1"), metavar = "file", default = NULL, help = "Time point 1 file name"),
+  make_option(c("-b", "--tp2"), metavar = "file", default = NULL, help = "Time point 2 file name"))
 
-# time1_raw <- readBaseData("data/timepoint1.csv", 1)
-# time2_raw <- readBaseData("data/timepoint2.csv", 2)
+arg <- parse_args(OptionParser(option_list=option_list))
+
+time1_raw <- readBaseData(arg$tp1, 1)
+time2_raw <- readBaseData(arg$tp2, 2)
 
 collected_data <- read.csv(file = "outputs/summary/TP1_cluster_results.csv", 
                            stringsAsFactors = FALSE, numerals = "no.loss") %>% 
