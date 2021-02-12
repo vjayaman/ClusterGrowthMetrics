@@ -148,3 +148,10 @@ meltedIDs <- function(df, k) {
     createID(., cnames[1], cnames[2], cnames[3]) %>% 
     set_colnames(c("isolate", cnames[2:4])) %>% return()
 }
+
+convertAndSave <- function(ip, op) {
+  df <- read.csv(ip, stringsAsFactors = FALSE, sep = ",", numerals = "no.loss") %>% as_tibble()
+  m1 <- ncol(df)-2
+  df %>% set_colnames(c("isolate", 0:m1)) %>% 
+    write.table(., op, row.names = FALSE, quote = FALSE, sep = "\t")
+}

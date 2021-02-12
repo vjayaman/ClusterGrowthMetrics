@@ -31,6 +31,7 @@ outputDetails(paste0("\nPART 1 OF 3: Data processing ", paste0(rep(".", 66), col
                      "  Preparing data for processing\n  Loading and formatting datafiles..."), 
               newcat = TRUE)
 
+# DATA PREPARATION
 tpt1 <- new("timedata", name = "tp1", raw = readBaseData(arg$tp1, 1))
 tpt2 <- new("timedata", name = "tp2", raw = readBaseData(arg$tp2, 2))
 

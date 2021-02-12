@@ -13,6 +13,11 @@ install.packages(c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progres
                    "stringr", "ggplot2", "plotly", "optparse", "methods"))
 ```
 
+Also, should be able to read in the data with the following statement, with the result being an "isolate" column followed by cluster assignments with numeric / character heights: 
+```R 
+read.csv(file = filename, stringsAsFactors = FALSE, numerals = "no.loss", check.names = FALSE, sep = "\t")
+```
+
 Usage
 ----------
 
