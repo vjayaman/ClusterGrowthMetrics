@@ -1,5 +1,4 @@
 #! /usr/bin/env Rscript
-
 msg <- file("outputs/logfile_datacollection.txt", open="wt")
 sink(msg, type="message")
 
@@ -12,8 +11,11 @@ setClass("heightdata", slots = list(h_before = "character", h_after = "character
                                     comps = "data.frame", changed = "data.frame", same = "data.frame", 
                                     tracked = "data.frame", bef = "data.frame", aft = "data.frame"))
 option_list <- list(
+  
   make_option(c("-a", "--tp1"), metavar = "file", default = NULL, help = "Time point 1 file name"),
+  
   make_option(c("-b", "--tp2"), metavar = "file", default = NULL, help = "Time point 2 file name"),
+  
   make_option(c("-x", "--heights"), metavar = "character", default = NULL,
               help = paste0("A string of comma-delimited numbers, e.g. '50,75,100' to ", 
                             "use as heights for which to generate cluster and strain tables")))
@@ -164,9 +166,7 @@ datafiles <- lapply(1:nrow(hfiles), function(i) {
 
 datafiles$actual_growth_rate %<>% format(., digits = 3, nsmall = 3)
 datafiles$new_growth %<>% format(., digits = 3, nsmall = 3)
-# df <- datafiles
-# datafiles$actual_growth_rate %<>% as.character()
-# datafiles$new_growth %<>% as.character()
+
 resultFiles(datafiles, op, heights, tpt1@raw, tpt1@melted)
 
 stopwatch[2] <- Sys.time()
