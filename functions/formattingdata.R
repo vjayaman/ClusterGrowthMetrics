@@ -1,73 +1,97 @@
+x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", 
+       "stringr", "ggplot2", "plotly", "optparse", "methods")
+lapply(x, require, character.only = TRUE)
 
-# assertthat::see_if(identical(a1, a2), msg = paste0("File ", j, " is not the same in both directories."))
+# Indicates length of a process in hours, minutes, and seconds, when given a name of the process 
+# ("pt") and a two-element named vector with Sys.time() values named "start_time" and "end_time"
 timeTaken <- function(pt, sw) {
-  t1 <- (sw[['end_time']] - sw[['start_time']])/60/60
-  t2 <- abs(t1 - trunc(t1))*60
-  t3 <- abs(t2 - trunc(t2))*60
+  t1 <- trunc((sw[['end_time']] - sw[['start_time']])/60/60)
+  t2 <- trunc(abs(t1 - trunc(t1))*60)
+  t3 <- trunc(abs(t2 - trunc(t2))*60)
   
-  word1 <- if_else(trunc(t1) == 1, "hour", "hours")
-  word2 <- if_else(trunc(t2) == 1, "minute", "minutes")
-  word3 <- if_else(trunc(t3) == 1, "second", "seconds")
+  word1 <- if_else(t1 == 1, "hour", "hours")
+  word2 <- if_else(t2 == 1, "minute", "minutes")
+  word3 <- if_else(t3 == 1, "second", "seconds")
   
-  paste0("  The ", pt, " process took ", trunc(t1), " ", word1, ", ", 
-         trunc(t2), " ", word2, " and ", trunc(t3), " ", word3, ".\n") %>% return()
+  paste0("  The ", pt, " process took ", t1, " ", word1, ", ", 
+         t2, " ", word2, " and ", t3, " ", word3, ".\n") %>% return()
 }
 
+# Outputs the same message in two ways, one is directed to stdout and one to a log file
 outputDetails <- function(msg, newcat = FALSE) {
   cat(msg)
   if (newcat) {cat("\n")}
   message(msg)
 }
 
-createID <- function(df, c0, c1, c2) {
-  df %>% add_column(id = paste0(toupper(c0), "_h", pull(df, c1), "_c", pull(df, c2))) %>% return()
+# Given a dataframe df, two column names c1 and c2 (height and cluster respectively) and a new
+# ID prefix tpx (e.g. "tp1"), creates an ID column and adds to df before returning df
+createID <- function(df, tpx, c1, c2) {
+  df %>% add_column(id = paste0(toupper(tpx), "_h", pull(df, c1), "_c", pull(df, c2))) %>% return()
 }
 
-rmIDComp <- function(df) {df %>% select(-id, -composition) %>% return()}
+rmIDComp <- function(df) {
+  df %>% select(-id, -composition) %>% return()
+}
 
-meltData <- function(dataset, id_val) {melt(dataset, id = id_val) %>% as_tibble() %>% return()}
+meltData <- function(dataset, id_val) {
+  melt(dataset, id = id_val) %>% as_tibble() %>% return()
+}
 
-factorToInt <- function(dataset, cname) {
-  dataset %>% mutate(across(all_of(cname), as.character)) %>% 
-    mutate(across(all_of(cname), as.integer)) %>% return()
+# Given a dataframe df, converts all the elements of column c1 from factors to integers
+factorToInt <- function(df, c1) {
+  df %>% mutate(across(all_of(c1), as.character)) %>% 
+    mutate(across(all_of(c1), as.integer)) %>% return()
 }
 
 charToInt <- function(x, v) {
   gsub(v, "", x) %>% as.integer()
 }
 
-codeIsolates <- function(df, tpx, all_iso) {
-  hx <- paste0(tpx, "_h")
-  cx <- paste0(tpx, "_cl")
+# Given a raw time point dataset, the timepoint ID (e.g. "TP1"), and a list of all isolates 
+# present at TP1 and TP2, return a dataframe with isolates given numeric codes (e.g. "-1-", "-10-")
+codeIsolates <- function(df, TPX, all_iso) {
+  hx <- paste0(TPX, "_h")
+  cx <- paste0(TPX, "_cl")
   
-  df %>% right_join(all_iso, ., by = c("char_isolate" = "isolate")) %>% 
-    select(-char_isolate) %>% rename(isolate = num_isolate) %>% melt(id = "isolate") %>% 
-    as_tibble() %>% set_colnames(c("isolate", hx, cx)) %>% factorToInt(., hx) %>% 
-    createID(., tpx, hx, cx) %>% mutate(isolate = paste0("-", isolate, "-")) %>% return()
+  df %>% right_join(all_iso, ., by = c("char_isolate" = "isolate")) %>% select(-char_isolate) %>% 
+    rename(isolate = num_isolate) %>% 
+    melt(id = "isolate") %>% as_tibble() %>% 
+    set_colnames(c("isolate", hx, cx)) %>% 
+    factorToInt(., hx) %>% 
+    createID(., TPX, hx, cx) %>% 
+    mutate(isolate = paste0("-", isolate, "-")) %>% return()
 }
 
+# Function used in manual_check_results.R, given raw data for a timepoint and a lowercase 
+# timepoint ID, return a dataframe with a column containing cluster sizes
 meltedSizing <- function(df, y) {
-  tp <- paste0("tp", y, "_")
-  # the TPX cluster assignments
+  tp <- paste0(y, "_")
   tp_melted <- df %>% melt(id = "isolate") %>% as_tibble() %>% 
     factorToInt(., "variable") %>% 
-    createID(., paste0("tp", y), "variable", "value") %>% 
+    createID(., y, "variable", "value") %>% 
     set_colnames(c("isolate", "tp_h", "tp_cl", "tp_id"))
   
-  # adding a column with the TPX cluster sizes
-  tp_melted %>% group_by(tp_id) %>% summarise(tp_cl_size = n(), .groups = "drop") %>% 
+  tp_melted %>% 
+    group_by(tp_id) %>% 
+    summarise(tp_cl_size = n(), .groups = "drop") %>% 
     left_join(tp_melted, ., by = "tp_id") %>% 
     set_colnames(c("isolate", paste0(tp, "h"), paste0(tp, "cl"), 
                    paste0(tp, "id"), paste0(tp, "cl_size"))) %>% return()
 }
 
+# Adds leading zeros to column cname in dataframe df, with a prefix of a leading character (lc) 
+# followed by w zeros (if no number is provided, the max number of characters in the column is used)
 leadingZeros <- function(df, cname, lc, w = NULL) {
-  if (is.null(w)) {w <- df[,cname] %>% max() %>% nchar()}
+  if (is.null(w)) {
+    w <- df[,cname] %>% max() %>% nchar()
+  }
   df[,cname] <- pull(df, cname) %>% formatC(., width = w, format = "d", flag = "0") %>% paste0(lc, .)
   return(df)
 }
 
-# given the defining filename, read in the data (need the full path from your working directory)
+# given the defining filename, read in the data (need the full path from your working directory), 
+# indicate to user if file is not found
 readBaseData <- function(filename, file_number) {
   if (is.na(filename)) {
     stop(paste0("Time point ", file_number, " dataset not found."))
@@ -77,6 +101,9 @@ readBaseData <- function(filename, file_number) {
   }
 }
 
+# Given a dataframe df, an output path op, the heights analyzed, and two TP1 datasets (one with the raw 
+# data and one in melted form), save the cluster file and strain file to the output directory
+# Note: write permissions required
 resultFiles <- function(df, op, heights, time1_raw, t1_melted) {
   clusters_formatted <- df %>% set_colnames(c(
     "TP1 ID", "TP1 height", "TP1 cluster", "TP1 cluster size", 
@@ -88,7 +115,6 @@ resultFiles <- function(df, op, heights, time1_raw, t1_melted) {
     "Novel growth = (TP2 size) / (TP2 size - number of novels)"))
   
   write.table(clusters_formatted, paste0(op,"TP1_cluster_results.txt"), row.names = FALSE, quote = FALSE, sep = "\t")
-  # write.csv(clusters_formatted, paste0(op,"TP1_cluster_results.tsv"), row.names = FALSE)
   
   m1 <- t1_melted$tp1_h %>% as.integer() %>% max() %>% nchar()
   m2 <- t1_melted$tp1_cl %>% as.integer() %>% max() %>% nchar()
@@ -107,18 +133,16 @@ resultFiles <- function(df, op, heights, time1_raw, t1_melted) {
     set_colnames(c("Isolates", colnames(clusters_formatted)))
   
   write.table(isolates_formatted, paste0(op, "TP1_strain_results.txt"), row.names = FALSE, quote = FALSE, sep = "\t")
-  # write.csv(isolates_formatted, paste0(op, "TP1_strain_results.tsv"), row.names = FALSE)
 }
 
-saveData <- function(tmp = NULL, h = NULL) {
-  if (!dir.exists("outputs")) {dir.create("outputs/height_data", recursive = TRUE)}
-  saveRDS(tmp, paste0("outputs/height_data/h", h, ".Rds"))
+saveData <- function(tmp = NULL, h = NULL, op) {
+  if (!dir.exists("outputs")) {dir.create(file.path(op, "height_data"), recursive = TRUE)}
+  saveRDS(tmp, paste0(op, "/height_data/h", h, ".Rds"))
 }
 
 meltedIDs <- function(df, k) {
   cnames <- paste0("tp", k, c("", "_h", "_cl", "_id"))
-  df %>% 
-    melt(id = "isolate") %>% as_tibble() %>% 
+  df %>% melt(id = "isolate") %>% as_tibble() %>% 
     set_colnames(c("isolate", cnames[2:3])) %>% 
     mutate(across(cnames[2], as.character)) %>% 
     createID(., cnames[1], cnames[2], cnames[3]) %>% 

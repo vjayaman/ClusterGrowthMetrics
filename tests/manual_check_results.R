@@ -23,8 +23,8 @@ collected_data$tp2_cl %<>% charToInt(., "c")
 
 heights <- collected_data$tp1_h %>% unique()
 
-b1 <- meltedSizing(time1_raw, 1)
-b2 <- meltedSizing(time2_raw, 2)
+b1 <- meltedSizing(time1_raw, "tp1")
+b2 <- meltedSizing(time2_raw, "tp2")
 novels <- setdiff(b2$isolate, b1$isolate)
 
 for (j in 1:length(heights)) {
