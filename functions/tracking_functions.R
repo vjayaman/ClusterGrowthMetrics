@@ -50,21 +50,6 @@ compsSet <- function(tp_coded, tp, indicate_progress) {
   }
 }
 
-isolatedHeight <- function(h_before, t1_comps, t2_comps, t2_colnames, t1_coded, t2_coded, ind_p) {
-  cc <- t1_comps %>% filter(tp1_h == h_before) %>% arrange(tp1_h, tp1_cl) %>% 
-    trackClusters(., t2_comps, t2_colnames, t1_coded, t2_coded, indicate_progress = ind_p) %>%
-    createID(., "tp1", "tp1_h", "tp1_cl")
-  
-  x1 <- t1_comps %>% filter(id %in% cc$id) %>% select(id, composition)
-  x2 <- t1_comps %>% filter(composition %in% x1$composition) %>% 
-    arrange(tp1_h, tp1_cl) %>% group_by(composition) %>% 
-    filter(row_number() == 1) %>% select(id, composition) %>% 
-    set_colnames(c("flag", "composition")) %>% ungroup()
-  
-  left_join(x1, x2, by = "composition") %>% select(-composition) %>% 
-    left_join(cc, ., by = "id") %>% return()
-}
-
 noChange <- function(ca, cb, hb) {
   in_both_heights <- ca %>% 
     inner_join(., cb, by = "comp") %>% 
