@@ -42,10 +42,10 @@ all_isolates <- c(tpt1@raw$isolate, tpt2@raw$isolate) %>% unique() %>%
   as_tibble() %>% set_colnames("char_isolate") %>% rowid_to_column("num_isolate")
 
 tpt1@coded <- tpt1@raw %>% codeIsolates(., tpt1@name, all_isolates)
-tpt1@melted <- meltedIDs(tpt1@raw, 1)
+tpt1@melted <- meltedIDs(tpt1@raw, "tp1")
 
 tpt2@coded <- tpt2@raw %>% codeIsolates(., tpt2@name, all_isolates)
-tpt2@melted <- meltedIDs(tpt2@raw, 2)
+tpt2@melted <- meltedIDs(tpt2@raw, "tp2")
 
 t2_colnames <- tpt2@coded$tp2_h %>% unique() %>% sort()
 

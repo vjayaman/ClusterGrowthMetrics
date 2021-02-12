@@ -48,18 +48,18 @@ charToInt <- function(x, v) {
   gsub(v, "", x) %>% as.integer()
 }
 
-# Given a raw time point dataset, the timepoint ID (e.g. "TP1"), and a list of all isolates 
+# Given a raw time point dataset, the timepoint ID (e.g. "tp1"), and a list of all isolates 
 # present at TP1 and TP2, return a dataframe with isolates given numeric codes (e.g. "-1-", "-10-")
-codeIsolates <- function(df, TPX, all_iso) {
-  hx <- paste0(TPX, "_h")
-  cx <- paste0(TPX, "_cl")
+codeIsolates <- function(df, tpx, all_iso) {
+  hx <- paste0(tpx, "_h")
+  cx <- paste0(tpx, "_cl")
   
   df %>% right_join(all_iso, ., by = c("char_isolate" = "isolate")) %>% select(-char_isolate) %>% 
     rename(isolate = num_isolate) %>% 
     melt(id = "isolate") %>% as_tibble() %>% 
     set_colnames(c("isolate", hx, cx)) %>% 
     factorToInt(., hx) %>% 
-    createID(., TPX, hx, cx) %>% 
+    createID(., tpx, hx, cx) %>% 
     mutate(isolate = paste0("-", isolate, "-")) %>% return()
 }
 
@@ -141,7 +141,7 @@ saveData <- function(tmp = NULL, h = NULL, op) {
 }
 
 meltedIDs <- function(df, k) {
-  cnames <- paste0("tp", k, c("", "_h", "_cl", "_id"))
+  cnames <- paste0(k, c("", "_h", "_cl", "_id"))
   df %>% melt(id = "isolate") %>% as_tibble() %>% 
     set_colnames(c("isolate", cnames[2:3])) %>% 
     mutate(across(cnames[2], as.character)) %>% 
