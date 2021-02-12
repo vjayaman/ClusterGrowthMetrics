@@ -1,5 +1,11 @@
 #! /usr/bin/env Rscript
-input_args = commandArgs(trailingOnly = TRUE)
+require("optparse")
+option_list <- list(
+  make_option(c("-a", "--tp1"), metavar = "file", default = NULL, help = "Time point 1 file name"),
+  make_option(c("-b", "--tp2"), metavar = "file", default = NULL, help = "Time point 2 file name")
+)
+
+arg <- parse_args(OptionParser(option_list=option_list))
 
 # 1) Rscript env_setup.R <output data directory> <time point 1 dataset> <time point 2 dataset> 
 #   - to install packages and set up required directory structure
@@ -29,6 +35,7 @@ x <- lapply(required_packages, require, character.only = TRUE)
 names(x) <- required_packages
 
 dir.create("outputs", showWarnings = FALSE)
+dir.create("data", showWarnings = FALSE)
 
 if (all(unlist(x))) {
   cat("\nEnvironment set up successful.\n")
@@ -47,16 +54,15 @@ if (all(unlist(x))) {
 # OPTIONAL: DATA PREPARATION
 library(tibble); library(magrittr)
 
-convertAndSave <- function(datadir, ip, op) {
-  # ip <- "data/european-t1_clusters.csv"; datadir <- "data"; op <- "tp1.tsv"
+convertAndSave <- function(ip, op) {
   df <- read.csv(ip, stringsAsFactors = FALSE, sep = ",", numerals = "no.loss") %>% as_tibble()
   m1 <- ncol(df)-2
   df %>% set_colnames(c("isolate", 0:m1)) %>% 
-    write.table(., file.path(datadir, op), row.names = FALSE, quote = FALSE, sep = "\t")
+    write.table(., op, row.names = FALSE, quote = FALSE, sep = "\t")
 }
 
-convertAndSave(datadir = input_args[1], ip = input_args[2], op = "tp1.csv")
-convertAndSave(datadir = input_args[1], ip = input_args[3], op = "tp2.csv")
+convertAndSave(ip = arg$tp1, op = "data/tp1.csv")
+convertAndSave(ip = arg$tp2, op = "data/tp2.csv")
 
 cat("\nFormatted datasets for use in tracking scripts.\n")
 close(pb)
