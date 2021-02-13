@@ -61,7 +61,7 @@ hx <- Heightdata$new(h_before = heights[1], t1_comps = tp1$comps)
 
 outputDetails("  Tracking and flagging clusters", newcat = TRUE)
 hx$clust_tracking(tp2$comps, t2_colnames, tp1$coded, tp2$coded, TRUE)$add_flag()$prior_data(tp1$comps)
-hx$saveTempFile(tp1$coded, hx$h_before, op)
+hx$saveTempFile(tp1$coded, hx$h_before, "outputs")
 
 outputDetails(paste0("\nPART 3 OF 3: Tracking and flagging clusters for the rest of the heights (", 
                      length(heights) - 1, " of them) ........."), newcat = TRUE)
@@ -89,7 +89,7 @@ for (j in 1:length(heights[-1])) {
   }else {
     hx$tracked <- hx$same %>% arrange(tp1_h, tp1_cl)
   }
-  hx$saveTempFile(tp1$coded, hx$h_after, op)
+  hx$saveTempFile(tp1$coded, hx$h_after, "outputs")
   hx$update_iteration()
 }
 close(fcb)
