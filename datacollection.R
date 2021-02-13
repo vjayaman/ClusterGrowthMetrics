@@ -54,17 +54,18 @@ tp2$comps$num_novs[is.na(tp2$comps$num_novs)] <- 0
 
 ### BASE CASE:
 outputDetails(paste0("\nPART 2 OF 3: Tracking and flagging clusters for base case ", 
-                     paste0(rep(".", 41), collapse = "")), newcat = TRUE)
+                     paste0(rep(".", 37), collapse = "")), newcat = TRUE)
 outputDetails(paste0("  Collecting height data for base case, height ", heights[1], "..."), newcat = TRUE)
 
 hx <- Heightdata$new(h_before = heights[1], t1_comps = tp1$comps)
 
 outputDetails("  Tracking and flagging clusters", newcat = TRUE)
 hx$clust_tracking(tp2$comps, t2_colnames, tp1$coded, tp2$coded, TRUE)$add_flag()$prior_data(tp1$comps)
+
 hx$saveTempFile(tp1$coded, hx$h_before, "outputs")
 
 outputDetails(paste0("\nPART 3 OF 3: Tracking and flagging clusters for the rest of the heights (", 
-                     length(heights) - 1, " of them) ........."), newcat = TRUE)
+                     length(heights) - 1, " of them) ..........."), newcat = TRUE)
 outputDetails(paste0("  This may take some time. \n  Note that for a more detailed ", 
                      "look at progress, you can keep an eye on the outputs \n  ", 
                      "directory, where updated data will be saved after each height.\n"))
@@ -109,13 +110,13 @@ a2 <- a1[which(a1$type=="last"), ] %>% select(id, composition) %>%
   select(c("tp1_h", "tp1_cl", "id", "first_flag", "last_flag"))
 
 hfiles <- lapply(heights, function(h) {
-    formatC(as.integer(h), width = nchar(max(tp1$coded$tp1_h)), format = "d", flag = "0") %>% 
+  formatC(as.integer(h), width = nchar(max(tp1$coded$tp1_h)), format = "d", flag = "0") %>% 
     paste0("h", ., ".Rds") %>% tibble(h, f = .)
 }) %>% bind_rows()
 
 outputDetails("  Saving the data in two separate files, with cluster and strain identifiers.", newcat = TRUE)
 datafiles <- lapply(1:nrow(hfiles), function(i) {
-  readRDS(paste0("outputs/height_data/", hfiles$f[i])) %>% 
+  readRDS(file.path("outputs", hfiles$f[i])) %>% 
     left_join(., a2, by = c("tp1_h", "tp1_cl", "id")) %>% 
     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
     oneHeight(hfiles$h[i], novels, tp1$comps, tp2$comps, ., tp1$melted, tp2$melted) %>% return()
@@ -124,7 +125,7 @@ datafiles <- lapply(1:nrow(hfiles), function(i) {
 datafiles$actual_growth_rate %<>% format(., digits = 3, nsmall = 3)
 datafiles$new_growth %<>% format(., digits = 3, nsmall = 3)
 
-resultFiles(datafiles, "outputs/summary", heights, tp1$raw, tp1$melted)
+resultFiles(datafiles, "outputs", heights, tp1$raw, tp1$melted)
 
 stopwatch[2] <- Sys.time()
 timeTaken(pt = "data collection", stopwatch) %>% outputDetails(., newcat = TRUE)

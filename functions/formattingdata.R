@@ -137,11 +137,6 @@ resultFiles <- function(df, op, heights, time1_raw, t1_melted) {
               row.names = FALSE, quote = FALSE, sep = "\t")
 }
 
-saveData <- function(tmp = NULL, h = NULL, op) {
-  if (!dir.exists("outputs")) {dir.create(file.path(op, "height_data"), recursive = TRUE)}
-  saveRDS(tmp, file.path(op, "height_data", paste0("h", h, ".Rds")))
-}
-
 meltedIDs <- function(df, k) {
   cnames <- paste0(k, c("", "_h", "_cl", "_id"))
   df %>% melt(id = "isolate") %>% as_tibble() %>% 

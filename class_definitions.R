@@ -10,7 +10,7 @@ Timedata <- R6Class(
       self$melted <- meltedIDs(raw, name)
       self$start()
     }, 
-    start = function() {cat(paste0("Initialized object for ", self$name, "\n"))}, 
+    start = function() {cat(paste0("  Initialized object for ", self$name, "\n"))}, 
     set_comps = function(coded_data) {
       self$comps <- compsSet(coded_data, toupper(self$name), indicate_progress = TRUE)
     }
@@ -51,10 +51,10 @@ Heightdata <- R6Class(
       self$tracked <- self$changed %>% add_column(flag = self$changed$id)
       invisible(self)
     }, 
-    saveTempFile = function(t1_coded, hval, op_dir) {
+    saveTempFile = function(t1_coded, hval, op) {
       m1 <- t1_coded$tp1_h %>% max() %>% nchar()
       m2 <- formatC(as.integer(hval), width = m1, format = "d", flag = "0")
-      saveData(self$tracked, h = m2, op_dir)
+      saveRDS(self$tracked, file.path(op, paste0("h", m2, ".Rds")))
     }
   )
 )
