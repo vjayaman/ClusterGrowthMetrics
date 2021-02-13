@@ -3,19 +3,11 @@ msg <- file("outputs/logfile_datacollection.txt", open="wt")
 sink(msg, type="message")
 
 suppressWarnings(suppressPackageStartupMessages(source("functions/tracking_functions.R")))
+source("class_definitions.R")
 
-setClass("timedata", slots = list(name = "character", raw = "data.frame", coded = "data.frame", 
-                                  comps = "data.frame", melted = "data.frame"))
-
-setClass("heightdata", slots = list(h_before = "character", h_after = "character", 
-                                    comps = "data.frame", changed = "data.frame", same = "data.frame", 
-                                    tracked = "data.frame", bef = "data.frame", aft = "data.frame"))
 option_list <- list(
-  
   make_option(c("-a", "--tp1"), metavar = "file", default = NULL, help = "Time point 1 file name"),
-  
   make_option(c("-b", "--tp2"), metavar = "file", default = NULL, help = "Time point 2 file name"),
-  
   make_option(c("-x", "--heights"), metavar = "character", default = NULL,
               help = paste0("A string of comma-delimited numbers, e.g. '50,75,100' to ", 
                             "use as heights for which to generate cluster and strain tables")))
@@ -34,62 +26,42 @@ outputDetails(paste0("\nPART 1 OF 3: Data processing ", paste0(rep(".", 66), col
               newcat = TRUE)
 
 # DATA PREPARATION
-tpt1 <- new("timedata", name = "tp1", raw = readBaseData(arg$tp1, 1))
-tpt2 <- new("timedata", name = "tp2", raw = readBaseData(arg$tp2, 2))
+f1 <- readBaseData(arg$tp1, 1)
+f2 <- readBaseData(arg$tp2, 2)
+heights <- strsplit(arg$heights, split = ",") %>% unlist()
 
-message("  Successfully read in datafiles")
-all_isolates <- c(tpt1@raw$isolate, tpt2@raw$isolate) %>% unique() %>% 
-  as_tibble() %>% set_colnames("char_isolate") %>% rowid_to_column("num_isolate")
+all_isolates <- unique(c(f1$isolate, f2$isolate)) %>% as_tibble() %>% 
+  set_colnames("char_isolate") %>% rowid_to_column("num_isolate")
 
-tpt1@coded <- tpt1@raw %>% codeIsolates(., tpt1@name, all_isolates)
-tpt1@melted <- meltedIDs(tpt1@raw, "tp1")
-
-tpt2@coded <- tpt2@raw %>% codeIsolates(., tpt2@name, all_isolates)
-tpt2@melted <- meltedIDs(tpt2@raw, "tp2")
-
-t2_colnames <- tpt2@coded$tp2_h %>% unique() %>% sort()
+tp1 <- Timedata$new("tp1", raw = f1, all_isolates)
+tp2 <- Timedata$new("tp2", raw = f2, all_isolates)
 
 # Note: assumption made that first column is labelled "isolate"
 outputDetails("  Processing time point 1 (TP1) clusters for easier data handling", newcat = TRUE)
+tp1$coded %>% rename(tp_h = tp1_h, tp_cl = tp1_cl) %>% tp1$set_comps(.)
 
-tpt1@comps <- tpt1@coded %>% rename(tp_h = tp1_h, tp_cl = tp1_cl) %>% 
-  compsSet(., "TP1", indicate_progress = TRUE)
+t2_colnames <- tp2$coded$tp2_h %>% unique() %>% sort()
 
 outputDetails("  Collecting and counting novel isolates in each TP2 cluster...", newcat = TRUE)
-novels <- setdiff(tpt2@coded$isolate, tpt1@coded$isolate)
-counting_novels <- tpt2@coded %>% 
-  filter(isolate %in% novels) %>% group_by(id) %>% 
-  summarise(num_novs = n(), .groups = "drop")
+novels <- setdiff(tp2$coded$isolate, tp1$coded$isolate)
+counting_novels <- tp2$coded %>% filter(isolate %in% novels) %>%
+  group_by(id) %>% summarise(num_novs = n(), .groups = "drop")
 
 outputDetails("  Processing time point 2 (TP2) clusters for easier data handling...", newcat = TRUE)
-tpt2@comps <- tpt2@coded %>% rename(tp_h = tp2_h, tp_cl = tp2_cl) %>% 
-  compsSet(., "TP2", indicate_progress = TRUE) %>% left_join(., counting_novels, by = "id")
-tpt2@comps$num_novs[is.na(tpt2@comps$num_novs)] <- 0
+tp2$coded %>% rename(tp_h = tp2_h, tp_cl = tp2_cl) %>% tp2$set_comps()
+tp2$comps <- tp2$comps %>% left_join(., counting_novels, by = "id")
+tp2$comps$num_novs[is.na(tp2$comps$num_novs)] <- 0
 
 ### BASE CASE:
 outputDetails(paste0("\nPART 2 OF 3: Tracking and flagging clusters for base case ", 
                      paste0(rep(".", 41), collapse = "")), newcat = TRUE)
-
-# this should be '0', the first column is the isolates
-outputDetails("  Tracking clusters", newcat = TRUE)
-heights <- strsplit(arg$heights, split = ",") %>% unlist() # "0,5,25"
-
 outputDetails(paste0("  Collecting height data for base case, height ", heights[1], "..."), newcat = TRUE)
 
-hx <- new("heightdata", h_before = heights[1])
-hx@comps <- tpt1@comps %>% filter(tp1_h == hx@h_before) %>% arrange(tp1_h, tp1_cl)
-hx@changed <- trackClusters(hx@comps, tpt2@comps, t2_colnames, 
-                            tpt1@coded, tpt2@coded, indicate_progress = TRUE) %>%
-  createID(., "tp1", "tp1_h", "tp1_cl")
+hx <- Heightdata$new(h_before = heights[1], t1_comps = tp1$comps)
 
-outputDetails("  Flagging clusters", newcat = TRUE)
-hx@tracked <- hx@changed %>% add_column(flag = hx@changed$id)
-
-formatC(as.integer(hx@h_before), width=nchar(max(tpt1@coded$tp1_h)), 
-        format="d", flag="0") %>% saveData(tmp=hx@tracked, h=.)
-
-hx@bef <- tpt1@comps %>% filter(tp1_h == hx@h_before) %>%
-  set_colnames(c("h_bef", "cl_bef", "id_bef", "comp", "size_bef"))
+outputDetails("  Tracking and flagging clusters", newcat = TRUE)
+hx$clust_tracking(tp2$comps, t2_colnames, tp1$coded, tp2$coded, TRUE)$add_flag()$prior_data(tp1$comps)
+hx$saveTempFile(tp1$coded, hx$h_before, op)
 
 outputDetails(paste0("\nPART 3 OF 3: Tracking and flagging clusters for the rest of the heights (", 
                      length(heights) - 1, " of them) ........."), newcat = TRUE)
@@ -102,57 +74,42 @@ fcb <- txtProgressBar(min = 0, max = length(heights[-1]), initial = 0, style = 3
 for (j in 1:length(heights[-1])) {
   setTxtProgressBar(fcb, j)
   
-  hx@h_after <- heights[-1][j]
+  hx$h_after <- heights[-1][j]
   message(paste0("  Height ", j + 1, " / ", length(heights)))
-  
-  hx@aft <- tpt1@comps %>% filter(tp1_h == hx@h_after) %>%
-    set_colnames(c("h_aft", "cl_aft", "id_aft", "comp", "size_aft"))
-
-  # Part 1: identifying clusters that have not changed from the previous height
-  hx@same <- noChange(hx@aft, hx@bef, hx@tracked)
-  
+  # unchanged(): identifying clusters that have not changed from the previous height
+  hx$post_data(tp1$comps)$unchanged()
   # Part 2: tracking clusters that changed
-  hx@comps <- hx@aft %>% filter(!(id_aft %in% hx@same$id)) %>% set_colnames(colnames(tpt1@comps))
-  
-  # indicate_progress = FALSE
-  hx@changed <- trackClusters(hx@comps, tpt2@comps, t2_colnames, 
-                              tpt1@coded, tpt2@coded, indicate_progress = FALSE) %>% 
-    createID(., "tp1", "tp1_h", "tp1_cl")
+  hx$comps <- hx$aft %>% filter(!(id_aft %in% hx$same$id)) %>% set_colnames(colnames(tp1$comps))
+  hx$clust_tracking(tp2$comps, t2_colnames, tp1$coded, tp2$coded, FALSE)
   
   # Part 3: flagging clusters to indicate when they were first seen
-  if (nrow(hx@changed) > 0) {
-    hx@tracked <- hx@changed %>% add_column(flag = hx@changed$id) %>% 
-      bind_rows(., hx@same) %>% arrange(tp1_h, tp1_cl)
+  if (nrow(hx$changed) > 0) {
+    hx$add_flag()
+    hx$tracked <- bind_rows(hx$tracked, hx$same) %>% arrange(tp1_h, tp1_cl)
   }else {
-    hx@tracked <- hx@same %>% arrange(tp1_h, tp1_cl)
+    hx$tracked <- hx$same %>% arrange(tp1_h, tp1_cl)
   }
-  formatC(as.integer(hx@h_after), width = nchar(max(tpt1@coded$tp1_h)), format = "d", flag = "0") %>% 
-    saveData(tmp = hx@tracked, h = .)
-
-  # Part 4 - prepping data for next iteration
-  hx@h_before <- hx@h_after
-  hx@bef <- hx@aft %>% set_colnames(c("h_bef", "cl_bef", "id_bef", "comp", "size_bef"))
+  hx$saveTempFile(tp1$coded, hx$h_after, op)
+  hx$update_iteration()
 }
 close(fcb)
 
 outputDetails("  Merging height data into a single results file.", newcat = TRUE)
-op <- "outputs/summary/"
 
 # Identifying the last time each cluster was seen
-a1 <- tpt1@comps %>% group_by(composition) %>% slice(1, n()) %>% 
+a1 <- tp1$comps %>% group_by(composition) %>% slice(1, n()) %>% 
   add_column(type = rep(c("first", "last"), nrow(.)/2)) %>% dplyr::ungroup()
 
 a2a <- a1[which(a1$type=="first"), c("id", "composition")] %>% rename("first_flag" = "id")
-a2 <- a1[which(a1$type=="last"), ] %>% 
-  select(id, composition) %>% rename("last_flag" = "id") %>% 
-  full_join(a2a, ., by = "composition") %>% 
+
+a2 <- a1[which(a1$type=="last"), ] %>% select(id, composition) %>% 
+  rename("last_flag" = "id") %>% full_join(a2a, ., by = "composition") %>% 
   select(composition, first_flag, last_flag) %>% 
-  left_join(tpt1@comps, ., by = "composition") %>% 
+  left_join(tp1$comps, ., by = "composition") %>% 
   select(c("tp1_h", "tp1_cl", "id", "first_flag", "last_flag"))
 
 hfiles <- lapply(heights, function(h) {
-  as.integer(h) %>% 
-    formatC(., width = nchar(max(tpt1@coded$tp1_h)), format = "d", flag = "0") %>% 
+    formatC(as.integer(h), width = nchar(max(tp1$coded$tp1_h)), format = "d", flag = "0") %>% 
     paste0("h", ., ".Rds") %>% tibble(h, f = .)
 }) %>% bind_rows()
 
@@ -161,13 +118,13 @@ datafiles <- lapply(1:nrow(hfiles), function(i) {
   readRDS(paste0("outputs/height_data/", hfiles$f[i])) %>% 
     left_join(., a2, by = c("tp1_h", "tp1_cl", "id")) %>% 
     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
-    oneHeight(hfiles$h[i], novels, tpt1@comps, tpt2@comps, ., tpt1@melted, tpt2@melted) %>% return()
+    oneHeight(hfiles$h[i], novels, tp1$comps, tp2$comps, ., tp1$melted, tp2$melted) %>% return()
 }) %>% bind_rows()
 
 datafiles$actual_growth_rate %<>% format(., digits = 3, nsmall = 3)
 datafiles$new_growth %<>% format(., digits = 3, nsmall = 3)
 
-resultFiles(datafiles, op, heights, tpt1@raw, tpt1@melted)
+resultFiles(datafiles, "outputs/summary", heights, tp1$raw, tp1$melted)
 
 stopwatch[2] <- Sys.time()
 timeTaken(pt = "data collection", stopwatch) %>% outputDetails(., newcat = TRUE)

@@ -1,5 +1,5 @@
 x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", 
-       "stringr", "ggplot2", "plotly", "optparse", "methods")
+       "stringr", "ggplot2", "plotly", "optparse", "methods", "R6")
 lapply(x, require, character.only = TRUE)
 
 # Indicates length of a process in hours, minutes, and seconds, when given a name of the process 
@@ -114,7 +114,8 @@ resultFiles <- function(df, op, heights, time1_raw, t1_melted) {
     "Actual growth rate = (TP2 size - TP1 size) / (TP1 size)", 
     "Novel growth = (TP2 size) / (TP2 size - number of novels)"))
   
-  write.table(clusters_formatted, paste0(op,"TP1_cluster_results.txt"), row.names = FALSE, quote = FALSE, sep = "\t")
+  write.table(clusters_formatted, file.path(op,"TP1_cluster_results.txt"), 
+              row.names = FALSE, quote = FALSE, sep = "\t")
   
   m1 <- t1_melted$tp1_h %>% as.integer() %>% max() %>% nchar()
   m2 <- t1_melted$tp1_cl %>% as.integer() %>% max() %>% nchar()
@@ -132,12 +133,13 @@ resultFiles <- function(df, op, heights, time1_raw, t1_melted) {
     select(isolate, colnames(df)) %>% 
     set_colnames(c("Isolates", colnames(clusters_formatted)))
   
-  write.table(isolates_formatted, paste0(op, "TP1_strain_results.txt"), row.names = FALSE, quote = FALSE, sep = "\t")
+  write.table(isolates_formatted, file.path(op, "TP1_strain_results.txt"), 
+              row.names = FALSE, quote = FALSE, sep = "\t")
 }
 
 saveData <- function(tmp = NULL, h = NULL, op) {
   if (!dir.exists("outputs")) {dir.create(file.path(op, "height_data"), recursive = TRUE)}
-  saveRDS(tmp, paste0(op, "/height_data/h", h, ".Rds"))
+  saveRDS(tmp, file.path(op, "height_data", paste0("h", h, ".Rds")))
 }
 
 meltedIDs <- function(df, k) {
@@ -155,3 +157,5 @@ convertAndSave <- function(ip, op) {
   df %>% set_colnames(c("isolate", 0:m1)) %>% 
     write.table(., op, row.names = FALSE, quote = FALSE, sep = "\t")
 }
+
+# assertthat::see_if(identical(a1, a2), msg = paste0("File ", j, " is not the same in both directories."))
