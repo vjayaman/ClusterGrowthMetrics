@@ -27,7 +27,9 @@ outputDetails(paste0("\nPART 1 OF 3: Data processing ", paste0(rep(".", 66), col
 
 # DATA PREPARATION
 f1 <- readBaseData(arg$tp1, 1)
+colnames(f1)[1] <- "isolate"
 f2 <- readBaseData(arg$tp2, 2)
+colnames(f2)[1] <- "isolate"
 heights <- strsplit(arg$heights, split = ",") %>% unlist()
 
 all_isolates <- unique(c(f1$isolate, f2$isolate)) %>% as_tibble() %>% 
@@ -64,38 +66,40 @@ hx$clust_tracking(tp2$comps, t2_colnames, tp1$coded, tp2$coded, TRUE)$add_flag()
 
 hx$saveTempFile(tp1$coded, hx$h_before, "outputs")
 
-outputDetails(paste0("\nPART 3 OF 3: Tracking and flagging clusters for the rest of the heights (", 
-                     length(heights) - 1, " of them) ..........."), newcat = TRUE)
-outputDetails(paste0("  This may take some time. \n  Note that for a more detailed ", 
-                     "look at progress, you can keep an eye on the outputs \n  ", 
-                     "directory, where updated data will be saved after each height.\n"))
-outputDetails("  Collecting data for other heights: ", newcat = TRUE)
+if (length(heights) > 1) {
+  outputDetails(paste0("\nPART 3 OF 3: Tracking and flagging clusters for the rest of the heights (", 
+                       length(heights) - 1, " of them) ..........."), newcat = TRUE)
+  outputDetails(paste0("  This may take some time. \n  Note that for a more detailed ", 
+                       "look at progress, you can keep an eye on the outputs \n  ", 
+                       "directory, where updated data will be saved after each height.\n"))
+  outputDetails("  Collecting data for other heights: ", newcat = TRUE)
 
-fcb <- txtProgressBar(min = 0, max = length(heights[-1]), initial = 0, style = 3)
-for (j in 1:length(heights[-1])) {
-  setTxtProgressBar(fcb, j)
-  
-  hx$h_after <- heights[-1][j]
-  message(paste0("  Height ", j + 1, " / ", length(heights)))
-  # unchanged(): identifying clusters that have not changed from the previous height
-  hx$post_data(tp1$comps)$unchanged()
-  # Part 2: tracking clusters that changed
-  hx$comps <- hx$aft %>% filter(!(id_aft %in% hx$same$id)) %>% set_colnames(colnames(tp1$comps))
-  hx$clust_tracking(tp2$comps, t2_colnames, tp1$coded, tp2$coded, FALSE)
-  
-  # Part 3: flagging clusters to indicate when they were first seen
-  if (nrow(hx$changed) > 0) {
-    hx$add_flag()
-    hx$tracked <- bind_rows(hx$tracked, hx$same) %>% arrange(tp1_h, tp1_cl)
-  }else {
-    hx$tracked <- hx$same %>% arrange(tp1_h, tp1_cl)
+  fcb <- txtProgressBar(min = 0, max = length(heights[-1]), initial = 0, style = 3)
+  for (j in 1:length(heights[-1])) {
+    setTxtProgressBar(fcb, j)
+    
+    hx$h_after <- heights[-1][j]
+    message(paste0("  Height ", j + 1, " / ", length(heights)))
+    # unchanged(): identifying clusters that have not changed from the previous height
+    hx$post_data(tp1$comps)$unchanged()
+    # Part 2: tracking clusters that changed
+    hx$comps <- hx$aft %>% filter(!(id_aft %in% hx$same$id)) %>% set_colnames(colnames(tp1$comps))
+    hx$clust_tracking(tp2$comps, t2_colnames, tp1$coded, tp2$coded, FALSE)
+    
+    # Part 3: flagging clusters to indicate when they were first seen
+    if (nrow(hx$changed) > 0) {
+      hx$add_flag()
+      hx$tracked <- bind_rows(hx$tracked, hx$same) %>% arrange(tp1_h, tp1_cl)
+    }else {
+      hx$tracked <- hx$same %>% arrange(tp1_h, tp1_cl)
+    }
+    hx$saveTempFile(tp1$coded, hx$h_after, "outputs")
+    hx$update_iteration()
   }
-  hx$saveTempFile(tp1$coded, hx$h_after, "outputs")
-  hx$update_iteration()
+  close(fcb)
 }
-close(fcb)
 
-outputDetails("  Merging height data into a single results file.", newcat = TRUE)
+outputDetails("  Merging height data into a single results file.", newcat = TRUE)  
 
 # Identifying the last time each cluster was seen
 a1 <- tp1$comps %>% group_by(composition) %>% slice(1, n()) %>% 
