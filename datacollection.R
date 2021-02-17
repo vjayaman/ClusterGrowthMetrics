@@ -8,6 +8,7 @@ source("class_definitions.R")
 option_list <- list(
   make_option(c("-a", "--tp1"), metavar = "file", default = NULL, help = "Time point 1 file name"),
   make_option(c("-b", "--tp2"), metavar = "file", default = NULL, help = "Time point 2 file name"),
+  make_option(c("-d", "--delimiter"), metavar = "character", default = "\t"), 
   make_option(c("-x", "--heights"), metavar = "character", default = NULL,
               help = paste0("A string of comma-delimited numbers, e.g. '50,75,100' to ", 
                             "use as heights for which to generate cluster and strain tables")))
@@ -26,10 +27,11 @@ outputDetails(paste0("\nPART 1 OF 3: Data processing ", paste0(rep(".", 66), col
               newcat = TRUE)
 
 # DATA PREPARATION
-f1 <- readBaseData(arg$tp1, 1)
-colnames(f1)[1] <- "isolate"
-f2 <- readBaseData(arg$tp2, 2)
-colnames(f2)[1] <- "isolate"
+# f1 <- readBaseData("../../EQProject/Europe_GZ/t1_clusters_processed.csv", 1, "\t")
+f1 <- readBaseData(arg$tp1, 1, "\t")#arg$delimiter)# %>% set_colnames(c("isolate", 0:ncol(.)))
+f2 <- readBaseData(arg$tp2, 2, "\t")#arg$delimiter)# %>% set_colnames(c("isolate", 0:ncol(.)))
+
+colnames(f1)[1] <- colnames(f2)[1] <- "isolate"
 heights <- strsplit(arg$heights, split = ",") %>% unlist()
 
 all_isolates <- unique(c(f1$isolate, f2$isolate)) %>% as_tibble() %>% 
@@ -132,7 +134,7 @@ datafiles$new_growth %<>% format(., digits = 3, nsmall = 3)
 resultFiles(datafiles, "outputs", heights, tp1$raw, tp1$melted)
 
 stopwatch[2] <- Sys.time()
-timeTaken(pt = "data collection", stopwatch) %>% outputDetails(., newcat = TRUE)
+# timeTaken(pt = "data collection", stopwatch) %>% outputDetails(., newcat = TRUE)
 outputDetails(paste0("  Successfully collected data for all heights."), newcat = TRUE)
 outputDetails("  Closing all connections...", newcat = TRUE)
 closeAllConnections()

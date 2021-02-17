@@ -4,18 +4,43 @@ lapply(x, require, character.only = TRUE)
 
 # Indicates length of a process in hours, minutes, and seconds, when given a name of the process 
 # ("pt") and a two-element named vector with Sys.time() values named "start_time" and "end_time"
-timeTaken <- function(pt, sw) {
-  t1 <- trunc((sw[['end_time']] - sw[['start_time']])/60/60)
-  t2 <- trunc(abs(t1 - trunc(t1))*60)
-  t3 <- trunc(abs(t2 - trunc(t2))*60)
-  
-  word1 <- if_else(t1 == 1, "hour", "hours")
-  word2 <- if_else(t2 == 1, "minute", "minutes")
-  word3 <- if_else(t3 == 1, "second", "seconds")
-  
-  paste0("  The ", pt, " process took ", t1, " ", word1, ", ", 
-         t2, " ", word2, " and ", t3, " ", word3, ".\n") %>% return()
-}
+
+# test1 <- rep(0,6) %>% set_names(c("hours_start", "hours_end", 
+#                                   "min_start", "min_end", 
+#                                   "sec_start", "sec_end"))
+# test1[['sec_start']] <- Sys.time(); test1[['sec_end']] <- Sys.time()
+# 
+# sw <- test1[5:6] %>% set_names(c("start_time", "end_time"))
+# timeTaken <- function(pt, sw) {
+#   dif <- sw[['end_time']] - sw[['start_time']]
+#   
+#   one_hour <- 60*60
+#   one_min <- 60
+#   
+#   if (dif >= one_hour) {
+#     # at least one hour
+#     t1 <- trunc((dif)/60/60)
+#     t2 <- trunc(abs(t1 - trunc(t1))*60)
+#     t3 <- trunc(abs(t2 - trunc(t2))*60)
+#     
+#     word1 <- if_else(t1 == 1, "hour", "hours")
+#     word2 <- if_else(t2 == 1, "minute", "minutes")
+#     word3 <- if_else(t3 == 1, "second", "seconds")
+#     
+#     paste0("  The ", pt, " process took ", t1, " ", word1, ", ", 
+#            t2, " ", word2, " and ", t3, " ", word3, ".\n") %>% return()  
+#   }else if (dif < one_hour & dif >= one_min) {
+#     # less than an but at least one minute
+#     t2 <- trunc(dif/60)
+#     t3 <- abs(t2 - dif/60)
+#   }else {
+#     # only seconds
+#     
+#   }
+#   
+#   
+#   
+# }
 
 # Outputs the same message in two ways, one is directed to stdout and one to a log file
 outputDetails <- function(msg, newcat = FALSE) {
@@ -92,12 +117,12 @@ leadingZeros <- function(df, cname, lc, w = NULL) {
 
 # given the defining filename, read in the data (need the full path from your working directory), 
 # indicate to user if file is not found
-readBaseData <- function(filename, file_number) {
+readBaseData <- function(filename, file_number, separator) {
   if (is.na(filename)) {
     stop(paste0("Time point ", file_number, " dataset not found."))
   }else {
     read.csv(file = filename, stringsAsFactors = FALSE, numerals = "no.loss", 
-             check.names = FALSE, sep = "\t") %>% as_tibble() %>% return()
+             check.names = FALSE, sep = separator) %>% as_tibble() %>% return()
   }
 }
 
@@ -128,7 +153,7 @@ resultFiles <- function(df, op, heights, time1_raw, t1_melted) {
     mutate(across(tp1_h, as.integer)) %>% 
     leadingZeros(., "tp1_h", "h", m1) %>% 
     leadingZeros(., "tp1_cl", "c", m2) %>% 
-    right_join(., df, by = c("tp1_h", "tp1_cl")) %>% 
+    left_join(., df, by = c("tp1_h", "tp1_cl")) %>% 
     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
     select(isolate, colnames(df)) %>% 
     set_colnames(c("Isolates", colnames(clusters_formatted)))
