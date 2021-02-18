@@ -15,8 +15,7 @@ option_list <- list(
 
 arg <- parse_args(OptionParser(option_list=option_list))
 
-stopwatch <- rep(0,2) %>% set_names(c("start_time", "end_time"))
-stopwatch[1] <- Sys.time()
+stopwatch <- list(as.character.POSIXt(Sys.time()))
 
 outputDetails(paste0("\n||", paste0(rep("-", 32), collapse = ""), " Cluster metric generation ", 
                      paste0(rep("-", 32), collapse = ""), "||\nStarted process at: ", Sys.time()))
@@ -99,6 +98,8 @@ if (length(heights) > 1) {
     hx$update_iteration()
   }
   close(fcb)
+}else {
+  outputDetails(paste0("\nPART 3 OF 3: Only one threshold provided, so no further tracking necessary"), newcat = TRUE)
 }
 
 outputDetails("  Merging height data into a single results file.", newcat = TRUE)  
@@ -120,7 +121,7 @@ hfiles <- lapply(heights, function(h) {
     paste0("h", ., ".Rds") %>% tibble(h, f = .)
 }) %>% bind_rows()
 
-outputDetails("  Saving the data in two separate files, with cluster and strain identifiers.", newcat = TRUE)
+outputDetails("  Saving the data in two separate files, with cluster and strain identifiers.\n", newcat = TRUE)
 datafiles <- lapply(1:nrow(hfiles), function(i) {
   readRDS(file.path("outputs", hfiles$f[i])) %>% 
     left_join(., a2, by = c("tp1_h", "tp1_cl", "id")) %>% 
@@ -133,8 +134,10 @@ datafiles$new_growth %<>% format(., digits = 3, nsmall = 3)
 
 resultFiles(datafiles, "outputs", heights, tp1$raw, tp1$melted)
 
-stopwatch[2] <- Sys.time()
-# timeTaken(pt = "data collection", stopwatch) %>% outputDetails(., newcat = TRUE)
+stopwatch <- append(stopwatch, values = as.character.POSIXt(Sys.time())) %>% 
+  set_names(c("start_time", "end_time"))
+
+timeTaken(pt = "data collection", stopwatch) %>% outputDetails(., newcat = TRUE)
 outputDetails(paste0("  Successfully collected data for all heights."), newcat = TRUE)
 outputDetails("  Closing all connections...", newcat = TRUE)
 closeAllConnections()

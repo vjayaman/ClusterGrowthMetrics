@@ -1,46 +1,26 @@
 x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", 
-       "stringr", "ggplot2", "plotly", "optparse", "methods", "R6")
+       "stringr", "ggplot2", "plotly", "optparse", "methods", "R6", "rlist")
 lapply(x, require, character.only = TRUE)
 
 # Indicates length of a process in hours, minutes, and seconds, when given a name of the process 
 # ("pt") and a two-element named vector with Sys.time() values named "start_time" and "end_time"
-
-# test1 <- rep(0,6) %>% set_names(c("hours_start", "hours_end", 
-#                                   "min_start", "min_end", 
-#                                   "sec_start", "sec_end"))
-# test1[['sec_start']] <- Sys.time(); test1[['sec_end']] <- Sys.time()
-# 
-# sw <- test1[5:6] %>% set_names(c("start_time", "end_time"))
-# timeTaken <- function(pt, sw) {
-#   dif <- sw[['end_time']] - sw[['start_time']]
-#   
-#   one_hour <- 60*60
-#   one_min <- 60
-#   
-#   if (dif >= one_hour) {
-#     # at least one hour
-#     t1 <- trunc((dif)/60/60)
-#     t2 <- trunc(abs(t1 - trunc(t1))*60)
-#     t3 <- trunc(abs(t2 - trunc(t2))*60)
-#     
-#     word1 <- if_else(t1 == 1, "hour", "hours")
-#     word2 <- if_else(t2 == 1, "minute", "minutes")
-#     word3 <- if_else(t3 == 1, "second", "seconds")
-#     
-#     paste0("  The ", pt, " process took ", t1, " ", word1, ", ", 
-#            t2, " ", word2, " and ", t3, " ", word3, ".\n") %>% return()  
-#   }else if (dif < one_hour & dif >= one_min) {
-#     # less than an but at least one minute
-#     t2 <- trunc(dif/60)
-#     t3 <- abs(t2 - dif/60)
-#   }else {
-#     # only seconds
-#     
-#   }
-#   
-#   
-#   
-# }
+timeTaken <- function(pt, sw) {
+  z <- difftime(sw[['end_time']], sw[['start_time']], units = "secs") %>% as.double()
+  m <- 60
+  h <- m^2
+  
+  if (z >= h) {
+    hrs <- trunc(z/h)
+    mins <- trunc(z/m - hrs*m)
+    paste0("The ", pt, " process took ", hrs, " hour(s), ", mins, " minute(s), and ", 
+           round(z - hrs*h - mins*m), " second(s).") %>% return()
+  }else if (z < h & z >= m) {
+    mins <- trunc(z/m)
+    paste0("The ", pt, " process took ", mins, " minute(s) and ", round(z - mins*m), " second(s).") %>% return()
+  }else {
+    paste0("The ", pt, " process took ", round(z), " second(s).") %>% return()
+  }
+}
 
 # Outputs the same message in two ways, one is directed to stdout and one to a log file
 outputDetails <- function(msg, newcat = FALSE) {
@@ -131,15 +111,15 @@ readBaseData <- function(filename, file_number, separator) {
 # Note: write permissions required
 resultFiles <- function(df, op, heights, time1_raw, t1_melted) {
   clusters_formatted <- df %>% set_colnames(c(
-    "TP1 ID", "TP1 height", "TP1 cluster", "TP1 cluster size", 
-    "First time this cluster was seen in TP1", "Last time this cluster was seen in TP1", 
-    "First time this cluster was seen in TP2", 
-    "TP2 height", "TP2 cluster", "TP2 cluster size", "Number of additional TP1 strains in the TP2 match", 
-    "Number of novels in the TP2 match", "Actual cluster size change (TP2 size - TP1 size)",
+    "TP1 ID", "TP1 height", "TP1 cluster", "First time this cluster was seen in TP1", 
+    "Last time this cluster was seen in TP1", "First time this cluster was seen in TP2", 
+    "TP2 height", "TP2 cluster", "TP1 cluster size", "TP2 cluster size", 
+    "Number of additional TP1 strains in the TP2 match", "Number of novels in the TP2 match", 
+    "Actual cluster size change (TP2 size - TP1 size)",
     "Actual growth rate = (TP2 size - TP1 size) / (TP1 size)", 
     "Novel growth = (TP2 size) / (TP2 size - number of novels)"))
   
-  write.table(clusters_formatted, file.path(op,"TP1_cluster_results.txt"), 
+  write.table(clusters_formatted, file.path(op,"CGM_cluster_results.txt"), 
               row.names = FALSE, quote = FALSE, sep = "\t")
   
   m1 <- t1_melted$tp1_h %>% as.integer() %>% max() %>% nchar()
@@ -158,7 +138,7 @@ resultFiles <- function(df, op, heights, time1_raw, t1_melted) {
     select(isolate, colnames(df)) %>% 
     set_colnames(c("Isolates", colnames(clusters_formatted)))
   
-  write.table(isolates_formatted, file.path(op, "TP1_strain_results.txt"), 
+  write.table(isolates_formatted, file.path(op, "CGM_strain_results.txt"), 
               row.names = FALSE, quote = FALSE, sep = "\t")
 }
 

@@ -182,7 +182,7 @@ oneHeight <- function(h_i, novels, t1_composition, t2_composition, oneh, b1, b2)
     actual_growth_rate = ((c1$tp2_cl_size - c1$tp1_cl_size) / c1$tp1_cl_size) %>% round(., digits = 3),
     new_growth = (c1$tp2_cl_size / (c1$tp2_cl_size - c1$num_novs)) %>% round(., digits = 3)) %>% 
     rename(additional_tp1 = add_tp1) %>% 
-    select(tp1_id, tp1_h, tp1_cl, tp1_cl_size, flag, last_flag, tp2_id, tp2_h, tp2_cl, tp2_cl_size, 
+    select(tp1_id, tp1_h, tp1_cl, flag, last_flag, tp2_id, tp2_h, tp2_cl, tp1_cl_size, tp2_cl_size, 
            additional_tp1, num_novs, actual_size_change, actual_growth_rate, new_growth) %>% 
     arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
     leadingZeros(., "tp1_cl", "c") %>% leadingZeros(., "tp2_cl", "c") %>%
