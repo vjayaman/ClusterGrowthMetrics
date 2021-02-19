@@ -10,7 +10,7 @@ Timedata <- R6Class(
       self$melted <- meltedIDs(raw, name)
       self$start()
     }, 
-    start = function() {cat(paste0("  Initialized object for ", self$name, "\n"))}, 
+    start = function() {cat(paste0("  Initialized object for ", toupper(self$name), "\n"))}, 
     set_comps = function(coded_data) {
       self$comps <- compsSet(coded_data, toupper(self$name), indicate_progress = TRUE)
     }
@@ -46,6 +46,10 @@ Heightdata <- R6Class(
     update_iteration = function() {
       self$h_before <- self$h_after
       self$bef <- self$aft %>% set_colnames(c("h_bef", "cl_bef", "id_bef", "comp", "size_bef"))
+    }, 
+    update_tracking = function() {
+      self$tracked <- self$changed
+      invisible(self)
     }, 
     add_flag = function() {
       self$tracked <- self$changed %>% add_column(flag = self$changed$id)

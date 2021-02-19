@@ -26,12 +26,15 @@ outputDetails(paste0("\nPART 1 OF 3: Data processing ", paste0(rep(".", 66), col
               newcat = TRUE)
 
 # DATA PREPARATION
-# f1 <- readBaseData("../../EQProject/Europe_GZ/t1_clusters_processed.csv", 1, "\t")
-f1 <- readBaseData(arg$tp1, 1, "\t")#arg$delimiter)# %>% set_colnames(c("isolate", 0:ncol(.)))
-f2 <- readBaseData(arg$tp2, 2, "\t")#arg$delimiter)# %>% set_colnames(c("isolate", 0:ncol(.)))
+f1 <- readBaseData(arg$tp1, 1, "\t")#arg$delimiter)
+f2 <- readBaseData(arg$tp2, 2, "\t")#arg$delimiter)
+heights <- strsplit(arg$heights, split = ",") %>% unlist()
+
+# f1 <- readBaseData("t1_clusters_processed.csv", 1, "\t")
+# f2 <- readBaseData("t2_clusters_processed.csv", 2, "\t")
+# heights <- "100"
 
 colnames(f1)[1] <- colnames(f2)[1] <- "isolate"
-heights <- strsplit(arg$heights, split = ",") %>% unlist()
 
 all_isolates <- unique(c(f1$isolate, f2$isolate)) %>% as_tibble() %>% 
   set_colnames("char_isolate") %>% rowid_to_column("num_isolate")
@@ -55,7 +58,7 @@ tp2$coded %>% rename(tp_h = tp2_h, tp_cl = tp2_cl) %>% tp2$set_comps()
 tp2$comps <- tp2$comps %>% left_join(., counting_novels, by = "id")
 tp2$comps$num_novs[is.na(tp2$comps$num_novs)] <- 0
 
-### BASE CASE:
+### BASE CASE ---------------------------------------------------------------------------------
 outputDetails(paste0("\nPART 2 OF 3: Tracking and flagging clusters for base case ", 
                      paste0(rep(".", 37), collapse = "")), newcat = TRUE)
 outputDetails(paste0("  Collecting height data for base case, height ", heights[1], "..."), newcat = TRUE)
@@ -63,7 +66,7 @@ outputDetails(paste0("  Collecting height data for base case, height ", heights[
 hx <- Heightdata$new(h_before = heights[1], t1_comps = tp1$comps)
 
 outputDetails("  Tracking and flagging clusters", newcat = TRUE)
-hx$clust_tracking(tp2$comps, t2_colnames, tp1$coded, tp2$coded, TRUE)$add_flag()$prior_data(tp1$comps)
+hx$clust_tracking(tp2$comps, t2_colnames, tp1$coded, tp2$coded, TRUE)$update_tracking()$prior_data(tp1$comps)
 
 hx$saveTempFile(tp1$coded, hx$h_before, "outputs")
 
@@ -89,7 +92,7 @@ if (length(heights) > 1) {
     
     # Part 3: flagging clusters to indicate when they were first seen
     if (nrow(hx$changed) > 0) {
-      hx$add_flag()
+      # hx$add_flag()
       hx$tracked <- bind_rows(hx$tracked, hx$same) %>% arrange(tp1_h, tp1_cl)
     }else {
       hx$tracked <- hx$same %>% arrange(tp1_h, tp1_cl)
@@ -104,40 +107,59 @@ if (length(heights) > 1) {
 
 outputDetails("  Merging height data into a single results file.", newcat = TRUE)  
 
-# Identifying the last time each cluster was seen
-a1 <- tp1$comps %>% group_by(composition) %>% slice(1, n()) %>% 
+# Identifying the first and last time each TP1 cluster was seen in TP1
+t1_fal <- tp1$comps %>% group_by(composition) %>% slice(1, n()) %>% 
   add_column(type = rep(c("first", "last"), nrow(.)/2)) %>% dplyr::ungroup()
-
-a2a <- a1[which(a1$type=="first"), c("id", "composition")] %>% rename("first_flag" = "id")
-
-a2 <- a1[which(a1$type=="last"), ] %>% select(id, composition) %>% 
-  rename("last_flag" = "id") %>% full_join(a2a, ., by = "composition") %>% 
-  select(composition, first_flag, last_flag) %>% 
+# 
+t1_ff <- t1_fal %>% filter(type == "first") %>% select(id, composition) %>% rename("first_tp1_flag" = "id")
+t1_lf <- t1_fal %>% filter(type == "last")  %>% select(id, composition) %>% rename("last_tp1_flag" = "id")
+t1_ff_lf <- full_join(t1_ff, t1_lf, by = "composition") %>% 
   left_join(tp1$comps, ., by = "composition") %>% 
-  select(c("tp1_h", "tp1_cl", "id", "first_flag", "last_flag"))
+  select(-composition) # tp1_h, tp1_cl, id, tp1_cl_size, first_flag, last_flag
+
+# Identifying the first and last time each TP2 cluster was seen in TP2
+t2_fal <- tp2$comps %>% group_by(composition) %>% slice(1, n()) %>% 
+  add_column(type = rep(c("first", "last"), nrow(.)/2)) %>% dplyr::ungroup()
+t2_ff <- t2_fal %>% filter(type == "first") %>% select(id, composition) %>% rename("first_tp2_flag" = "id")
+t2_lf <- t2_fal %>% filter(type == "last")  %>% select(id, composition) %>% rename("last_tp2_flag" = "id")
+t2_ff_lf <- full_join(t2_ff, t2_lf, by = "composition") %>% 
+  left_join(tp2$comps, ., by = "composition") %>% 
+  rename(tp2_id = id) %>% 
+  select(tp2_id, tp2_h, tp2_cl, tp2_cl_size, first_tp2_flag, last_tp2_flag)
 
 hfiles <- lapply(heights, function(h) {
-  formatC(as.integer(h), width = nchar(max(tp1$coded$tp1_h)), format = "d", flag = "0") %>% 
+  formatC(as.integer(h), width = nchar(max(tp1$coded$tp1_h)), format = "d", flag = "0") %>%
     paste0("h", ., ".Rds") %>% tibble(h, f = .)
 }) %>% bind_rows()
 
 outputDetails("  Saving the data in two separate files, with cluster and strain identifiers.\n", newcat = TRUE)
 datafiles <- lapply(1:nrow(hfiles), function(i) {
-  readRDS(file.path("outputs", hfiles$f[i])) %>% 
-    left_join(., a2, by = c("tp1_h", "tp1_cl", "id")) %>% 
-    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
-    oneHeight(hfiles$h[i], novels, tp1$comps, tp2$comps, ., tp1$melted, tp2$melted) %>% return()
+  tmp <- readRDS(file.path("outputs", hfiles$f[i])) %>%  
+    left_join(., t1_ff_lf, by = c("tp1_h", "tp1_cl", "id", "tp1_cl_size")) %>% rename(tp1_id = id) %>% 
+    left_join(., t2_ff_lf, by = c("tp2_h", "tp2_cl", "tp2_cl_size")) %>% 
+    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
+    
+  oneHeight(hfiles$h[i], novels, tp1$comps, tp2$comps, tmp, tp1$melted, tp2$melted) %>% return()
 }) %>% bind_rows()
 
-datafiles$actual_growth_rate %<>% format(., digits = 3, nsmall = 3)
-datafiles$new_growth %<>% format(., digits = 3, nsmall = 3)
-
-resultFiles(datafiles, "outputs", heights, tp1$raw, tp1$melted)
+resultFiles(datafiles, "outputs", heights, tp1$raw, tp2$raw, tp1$melted)
 
 stopwatch <- append(stopwatch, values = as.character.POSIXt(Sys.time())) %>% 
   set_names(c("start_time", "end_time"))
 
-timeTaken(pt = "data collection", stopwatch) %>% outputDetails(., newcat = TRUE)
 outputDetails(paste0("  Successfully collected data for all heights."), newcat = TRUE)
-outputDetails("  Closing all connections...", newcat = TRUE)
+
+timeTaken(pt = "data collection", stopwatch) %>% outputDetails(., newcat = TRUE)
+outputDetails(paste0("\n||", paste0(rep("-", 28), collapse = ""), " End of cluster metric generation ", 
+                     paste0(rep("-", 29), collapse = ""), "||"))
+
+# outputDetails("  Closing all connections...", newcat = TRUE)
 closeAllConnections()
+
+
+
+
+
+
+
+

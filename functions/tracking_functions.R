@@ -137,56 +137,56 @@ trackClusters <- function(hdata, t2_comps, t2names, t1_coded, t2_coded, indicate
   bind_rows(t1set, t2set) %>% arrange(tp1_h, tp1_cl) %>% return()
 }
 
-# additional TP1s are the TP1 strains that were not found in the TP1 cluster, 
-# but are found in the TP2 cluster (and are not novels)
-additionalTP1 <- function(b1, b2, id1, id2, novs) {
-  # id1 <- w$tp1_id[i]; id2 <- w$tp2_id[i]; novs <- novels
-  tp1_isos <- b1 %>% filter(tp1_id == id1) %>% pull(isolate)
-  tp2_isos <- b2 %>% filter(tp2_id == id2) %>% pull(isolate)
-  m2 <- length(tp2_isos)
-  m2a <- length(which(tp2_isos %in% novs))
-  m2b <- length(which(tp2_isos %in% tp1_isos))
-  return(tibble(tp1_id = id1, tp2_id = id2, add_tp1 = m2 - m2a - m2b))
-}
-
-oneHeight <- function(h_i, novels, t1_composition, t2_composition, oneh, b1, b2) {
+oneHeight <- function(novels, tp1, tp2, oneh) {
   # check: (no cluster numbers skipped) - none should be skipped by definition, but just in case
   # identical(unique(oneh$tp1_cl), min(oneh$tp1_cl):max(oneh$tp1_cl))
+
+  matched <- oneh %>% arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
+  compmatches <- matched[!duplicated(matched$tp1_id),]
   
-  # first TP2 match for each TP1 cluster at this height
-  d2 <- oneh[diff(c(0, oneh$tp1_cl)) != 0,] %>% rename(tp1_id = id) %>% 
-    createID(., "tp2", "tp2_h", "tp2_cl") %>% rename(tp2_id = id)
-  matched <- d2 %>% select(tp1_id, tp2_id)
+  did_not_chg <- compmatches %>% filter(tp1_cl_size == tp2_cl_size) %>% add_column(add_TP1 = 0)
   
-  e2 <- t2_composition %>% select(id, composition) %>% rename(tp2_id = id, comp2 = composition)
-  e1 <- t1_composition %>% select(id, composition) %>% rename(tp1_id = id, comp1 = composition)
+  chg <- compmatches %>% filter(tp1_cl_size != tp2_cl_size)
   
-  compmatches <- e1 %>% filter(tp1_id %in% matched$tp1_id) %>% 
-    left_join(., matched, by = "tp1_id") %>% left_join(., e2, by = "tp2_id")
+  nov_code <- setdiff(tp2$coded$isolate, tp1$coded$isolate) %>% unique()
   
-  did_not_change <- compmatches %>% filter(comp1 == comp2) %>% 
-    select(tp1_id, tp2_id) %>% add_column(add_tp1 = 0)
+  q1 <- tp1$coded %>% rename(tp1_id = id) %>% add_column(status = NA)
   
-  chg <- compmatches %>% filter(comp1 != comp2) %>% select(tp1_id, tp2_id)
+  q2 <- tp2$coded %>% rename(tp2_id = id) %>% add_column(status = NA)
+  q2$status[which(q2$isolate %in% nov_code)] <- "novs"
   
-  novs <- setdiff(b2$isolate, b1$isolate) %>% unique()
-  changed_additional <- lapply(1:nrow(chg), function(i) {
-    additionalTP1(b1, b2, chg$tp1_id[i], chg$tp2_id[i], novs)
-  }) %>% bind_rows()
+  sneakers <- lapply(1:nrow(chg), function(j) {
+    # print(paste(j, "/", nrow(chg)))
+    key_c <- chg %>% slice(j)
+    
+    tbl1 <- q1 %>% filter(tp1_id == key_c$tp1_id) %>% mutate(status = "tp1_cl_size")
+    tbl2 <- q2 %>% filter(tp2_id == key_c$tp2_id)
+    
+    x2 <- tbl2 %>% filter(status == "novs") %>% nrow()
+    x3 <- tbl2 %>% filter(!(isolate %in% tbl1$isolate) & is.na(status)) %>% 
+      mutate(status = "additional_TP1") %>% nrow()
+    
+    c2_tally <- tibble(tp1_cl_size = nrow(tbl1), num_novs = x2, add_TP1 = x3, 
+                       tp2_cl_size = sum(nrow(tbl1), x2, x3))
+    
+    assert(paste0("oneHeight(): Novels check failed for ", key_c$tp1_id), key_c$num_novs == c2_tally$num_novs)
+    assert(paste0("Composition not calculated properly for ", key_c$tp2_id, 
+                  " when tracking ", key_c$tp1_id), c2_tally$tp2_cl_size == key_c$tp2_cl_size)
+    
+    left_join(key_c, c2_tally, by = c("tp1_cl_size", "tp2_cl_size", "num_novs")) %>% return()
+  }) %>% bind_rows() %>% 
+    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
   
-  c1 <- bind_rows(changed_additional, did_not_change) %>% 
-    left_join(d2, ., by = c("tp1_id", "tp2_id"))
- 
-  c1 %>% add_column(
-    actual_size_change = (c1$tp2_cl_size - c1$tp1_cl_size), 
+  c1 <- bind_rows(did_not_chg, sneakers) %>% arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
+
+  c2 <- c1 %>% add_column(
+    actual_size_change = (c1$tp2_cl_size - c1$tp1_cl_size),
     actual_growth_rate = ((c1$tp2_cl_size - c1$tp1_cl_size) / c1$tp1_cl_size) %>% round(., digits = 3),
-    new_growth = (c1$tp2_cl_size / (c1$tp2_cl_size - c1$num_novs)) %>% round(., digits = 3)) %>% 
-    rename(additional_tp1 = add_tp1) %>% 
-    select(tp1_id, tp1_h, tp1_cl, flag, last_flag, tp2_id, tp2_h, tp2_cl, tp1_cl_size, tp2_cl_size, 
-           additional_tp1, num_novs, actual_size_change, actual_growth_rate, new_growth) %>% 
-    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
-    leadingZeros(., "tp1_cl", "c") %>% leadingZeros(., "tp2_cl", "c") %>%
-    leadingZeros(., "tp1_h", "h", w = nchar(max(t1_composition$tp1_h))) %>%
-    leadingZeros(., "tp2_h", "h", w = nchar(max(t2_composition$tp2_h))) %>% return()
+    new_growth = (c1$tp2_cl_size / (c1$tp2_cl_size - c1$num_novs)) %>% round(., digits = 3))
+  
+    c2 %>% select(tp1_id, tp1_h, tp1_cl, tp2_id, tp2_h, tp2_cl, tp1_cl_size, tp2_cl_size, 
+                  num_novs, add_TP1, actual_size_change, actual_growth_rate, new_growth, 
+                  first_tp1_flag, last_tp1_flag, first_tp2_flag, last_tp2_flag) %>% 
+    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% return()
 }
 

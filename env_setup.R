@@ -12,8 +12,10 @@ sink(msg, type="message")
 
 message(paste0("For reporting an issue, see https://github.com/vjayaman/ClusterGrowthMetrics/issues.\n"))
 
-required_packages <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", "ggplot2", 
-                       "plotly", "flexdashboard", "RColorBrewer", "stringr",  "optparse", "shiny", "DT")
+required_packages <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", 
+                       "stringr", "ggplot2", "plotly", "optparse", "methods", "R6", "testit")
+# required_packages <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", "ggplot2", 
+#                        "plotly", "flexdashboard", "RColorBrewer", "stringr",  "optparse", "shiny", "DT")
 
 not_installed <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
 
