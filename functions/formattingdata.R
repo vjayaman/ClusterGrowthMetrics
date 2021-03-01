@@ -31,8 +31,17 @@ outputDetails <- function(msg, newcat = FALSE) {
 
 # Given a dataframe df, two column names c1 and c2 (height and cluster respectively) and a new
 # ID prefix tpx (e.g. "tp1"), creates an ID column and adds to df before returning df
-createID <- function(df, tpx, c1, c2) {
-  df %>% add_column(id = paste0(toupper(tpx), "_h", pull(df, c1), "_c", pull(df, c2))) %>% return()
+# createID <- function(df, tpx, c1, c2) {
+#   df %>% add_column(id = paste0(toupper(tpx), "_h", pull(df, c1), "_c", pull(df, c2))) %>% return()
+# }
+
+
+newID <- function(df, tpx, c1, c2, ph, pc) {
+  newh <- df %>% pull(c1) %>% as.character() %>% as.integer() %>% 
+    formatC(., width = ph, format = "d", flag = "0") %>% paste0("h", .)
+  newc <- df %>% pull(c2) %>% as.character() %>% as.integer() %>% 
+    formatC(., width = pc, format = "d", flag = "0") %>% paste0("c", .)
+  df %>% add_column(id = paste0(toupper(tpx), "_", newh, "_", newc)) %>% return()
 }
 
 rmIDComp <- function(df) {
@@ -55,7 +64,7 @@ charToInt <- function(x, v) {
 
 # Given a raw time point dataset, the timepoint ID (e.g. "tp1"), and a list of all isolates 
 # present at TP1 and TP2, return a dataframe with isolates given numeric codes (e.g. "-1-", "-10-")
-codeIsolates <- function(df, tpx, all_iso) {
+codeIsolates <- function(df, tpx, all_iso, ph, pc) {
   hx <- paste0(tpx, "_h")
   cx <- paste0(tpx, "_cl")
   
@@ -64,17 +73,19 @@ codeIsolates <- function(df, tpx, all_iso) {
     melt(id = "isolate") %>% as_tibble() %>% 
     set_colnames(c("isolate", hx, cx)) %>% 
     factorToInt(., hx) %>% 
-    createID(., tpx, hx, cx) %>% 
+    newID(., tpx, hx, cx, ph, pc) %>% 
+    # createID(., tpx, hx, cx) %>% 
     mutate(isolate = paste0("-", isolate, "-")) %>% return()
 }
 
 # Function used in manual_check_results.R, given raw data for a timepoint and a lowercase 
 # timepoint ID, return a dataframe with a column containing cluster sizes
-meltedSizing <- function(df, y) {
+meltedSizing <- function(df, y, ph, pc) {
   tp <- paste0(y, "_")
   tp_melted <- df %>% melt(id = "isolate") %>% as_tibble() %>% 
     factorToInt(., "variable") %>% 
-    createID(., y, "variable", "value") %>% 
+    newID(., y, "variable", "value", ph, pc) %>% 
+    # createID(., y, "variable", "value") %>% 
     set_colnames(c("isolate", "tp_h", "tp_cl", "tp_id"))
   
   tp_melted %>% 
@@ -172,12 +183,13 @@ resultFiles <- function(dfx, op, heights, time1_raw, time2_raw, t1_melted) {
                 row.names = FALSE, quote = FALSE, sep = "\t")
 }
 
-meltedIDs <- function(df, k) {
+meltedIDs <- function(df, k, ph, pc) {
   cnames <- paste0(k, c("", "_h", "_cl", "_id"))
   df %>% melt(id = "isolate") %>% as_tibble() %>% 
     set_colnames(c("isolate", cnames[2:3])) %>% 
     mutate(across(cnames[2], as.character)) %>% 
-    createID(., cnames[1], cnames[2], cnames[3]) %>% 
+    newID(., cnames[1], cnames[2], cnames[3], ph, pc) %>% 
+    # createID(., cnames[1], cnames[2], cnames[3]) %>% 
     set_colnames(c("isolate", cnames[2:4])) %>% return()
 }
 

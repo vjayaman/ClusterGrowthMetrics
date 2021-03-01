@@ -158,14 +158,11 @@ oneHeight <- function(novels, tp1, tp2, oneh) {
   sneakers <- lapply(1:nrow(chg), function(j) {
     # print(paste(j, "/", nrow(chg)))
     key_c <- chg %>% slice(j)
-    
     tbl1 <- q1 %>% filter(tp1_id == key_c$tp1_id) %>% mutate(status = "tp1_cl_size")
     tbl2 <- q2 %>% filter(tp2_id == key_c$tp2_id)
-    
     x2 <- tbl2 %>% filter(status == "novs") %>% nrow()
     x3 <- tbl2 %>% filter(!(isolate %in% tbl1$isolate) & is.na(status)) %>% 
       mutate(status = "additional_TP1") %>% nrow()
-    
     c2_tally <- tibble(tp1_cl_size = nrow(tbl1), num_novs = x2, add_TP1 = x3, 
                        tp2_cl_size = sum(nrow(tbl1), x2, x3))
     
@@ -174,8 +171,7 @@ oneHeight <- function(novels, tp1, tp2, oneh) {
                   " when tracking ", key_c$tp1_id), c2_tally$tp2_cl_size == key_c$tp2_cl_size)
     
     left_join(key_c, c2_tally, by = c("tp1_cl_size", "tp2_cl_size", "num_novs")) %>% return()
-  }) %>% bind_rows() %>% 
-    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
+  }) %>% bind_rows()
   
   c1 <- bind_rows(did_not_chg, sneakers) %>% arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
 
