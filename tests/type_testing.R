@@ -276,6 +276,10 @@ nov_check <- nov_check %>% add_column(real_num_novs) %>%
 assert("The number of novels in each TP2 cluster was correctly identified", 
        identical(nov_check$num_novs, real_num_novs))
 
+# Check that the number of sneakers was correctly identified for every cluster
+# for novels first found in pure novel TP2 clusters, should be 0
+# for novels first found in mixed novel TP2 clusters, should inherit from TP1 data
+# for originals, should have real values, or be 0 - CHECK
 
 
 #     - add_TP1

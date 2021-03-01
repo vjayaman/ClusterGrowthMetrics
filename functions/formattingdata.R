@@ -31,11 +31,6 @@ outputDetails <- function(msg, newcat = FALSE) {
 
 # Given a dataframe df, two column names c1 and c2 (height and cluster respectively) and a new
 # ID prefix tpx (e.g. "tp1"), creates an ID column and adds to df before returning df
-# createID <- function(df, tpx, c1, c2) {
-#   df %>% add_column(id = paste0(toupper(tpx), "_h", pull(df, c1), "_c", pull(df, c2))) %>% return()
-# }
-
-
 newID <- function(df, tpx, c1, c2, ph, pc) {
   newh <- df %>% pull(c1) %>% as.character() %>% as.integer() %>% 
     formatC(., width = ph, format = "d", flag = "0") %>% paste0("h", .)
@@ -126,61 +121,6 @@ formatColumns <- function(res_file, time1_raw, time2_raw) {
     leadingZeros(., "tp1_h", "h", w = max(nchar(colnames(time1_raw)[-1]))) %>% 
     leadingZeros(., "tp2_h", "h", w = max(nchar(colnames(time2_raw)[-1]))) %>% 
     return()
-}
-
-# Given a dataframe df, an output path op, the heights analyzed, and two TP1 datasets (one with the raw 
-# data and one in melted form), save the cluster file and strain file to the output directory
-# Note: write permissions required
-
-# dfx <- datafiles; op <- "outputs"; time1_raw <- tp1$raw; time2_raw <- tp2$raw; t1_melted <- tp1$melted
-resultFiles <- function(dfx, op, heights, time1_raw, time2_raw, t1_melted) {
-
-  assert("Column names don't match - req for result file prep", 
-         identical(c(paste0("tp1_", c("id", "h", "cl")), paste0("tp2_", c("id", "h", "cl")), 
-           "tp1_cl_size", "tp2_cl_size", "num_novs", "add_TP1", "actual_size_change", 
-           "actual_growth_rate", "new_growth", paste0(c("first_", "last_"), "tp1_flag"), 
-           paste0(c("first_", "last_"), "tp2_flag")), colnames(dfx)))
-  
-  assert("TP2 ID and 'First time this cluster was seen in TP2 do not match (and they should)", 
-         identical(dfx$tp2_id, dfx$first_tp2_flag))
-  
-  cnames <- c(
-    "TP1 ID", "TP1 height", "TP1 cluster", "First time this cluster was seen in TP1", 
-    "Last time this cluster was seen in TP1", "First time this cluster was seen in TP2", 
-    "Last time this cluster was seen in TP2", "TP2 height", "TP2 cluster", "TP1 cluster size", 
-    "TP2 cluster size", "Number of novels in the TP2 match", 
-    "Number of additional TP1 strains in the TP2 match",
-    "Actual cluster size change (TP2 size - TP1 size)",
-    "Actual growth rate = (TP2 size - TP1 size) / (TP1 size)", 
-    "Novel growth = (TP2 size) / (TP2 size - number of novels)")
-  
-  clusters_formatted <- dfx %>% 
-    select(tp1_id, tp1_h, tp1_cl, first_tp1_flag, last_tp1_flag, first_tp2_flag, last_tp2_flag, 
-           tp2_h, tp2_cl, tp1_cl_size, tp2_cl_size, num_novs, add_TP1, actual_size_change, 
-           actual_growth_rate, new_growth)
-  
-  clusters_formatted %>% 
-    formatColumns(., time1_raw, time2_raw) %>% set_colnames(cnames) %>% 
-    write.table(., file.path(op,"CGM_cluster_results.txt"), 
-                row.names = FALSE, quote = FALSE, sep = "\t")
-  
-  m1 <- t1_melted$tp1_h %>% as.integer() %>% max() %>% nchar()
-  m2 <- t1_melted$tp1_cl %>% as.integer() %>% max() %>% nchar()
-  
-  isolates_formatted <- time1_raw %>% 
-    select(isolate, as.character(heights)) %>% 
-    melt(., id = "isolate") %>% as_tibble() %>% 
-    rename(tp1_h = variable, tp1_cl = value) %>% 
-    mutate(across(tp1_h, as.character)) %>%
-    mutate(across(tp1_h, as.integer)) %>% 
-    left_join(., clusters_formatted, by = c("tp1_h", "tp1_cl")) %>% 
-    arrange(tp1_h, tp1_cl, tp2_h, tp2_cl) %>% 
-    select(isolate, colnames(clusters_formatted))
-  
-  isolates_formatted %>% formatColumns(., time1_raw, time2_raw) %>% 
-    set_colnames(c("Isolates", cnames)) %>% 
-    write.table(., file.path(op, "CGM_strain_results.txt"), 
-                row.names = FALSE, quote = FALSE, sep = "\t")
 }
 
 meltedIDs <- function(df, k, ph, pc) {

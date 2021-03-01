@@ -179,7 +179,7 @@ novels_only_tracking <- t2_ff_lf %>% filter(tp2_id %in% first_nov_flag$tp2_id) %
 pure_novels <- novels_only_tracking %>% filter(num_novs == tp2_cl_size) %>% add_column(tp1_cl_size = 0)
 
 x7 <- pure_novels %>% add_column(
-  add_TP1 = pure_novels$tp2_cl_size - pure_novels$tp1_cl_size, 
+  add_TP1 = 0, #pure_novels$tp2_cl_size - pure_novels$tp1_cl_size, 
   actual_size_change = pure_novels$tp2_cl_size - pure_novels$tp1_cl_size, 
   actual_growth_rate = ((pure_novels$tp2_cl_size - pure_novels$tp1_cl_size) / pure_novels$tp1_cl_size) %>% round(., digits = 3), 
   new_growth = (pure_novels$tp2_cl_size / (pure_novels$tp2_cl_size - pure_novels$num_novs)) %>% round(., digits = 3)
@@ -250,9 +250,6 @@ isolates_file %>%
 
 
 # ----------------------------------------------------------------------------------------------------------
-
-# resultFiles(clusters_just_tp1, "outputs", heights, tp1$raw, tp2$raw, tp1$melted)
-
 stopwatch <- append(stopwatch, values = as.character.POSIXt(Sys.time())) %>% 
   set_names(c("start_time", "end_time"))
 
