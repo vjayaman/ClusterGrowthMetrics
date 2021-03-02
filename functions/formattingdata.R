@@ -2,6 +2,25 @@ x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress",
        "stringr", "ggplot2", "plotly", "optparse", "methods", "R6", "testit")
 lapply(x, require, character.only = TRUE)
 
+flaggingClusters <- function(tp_comps, tpx) {
+  # Identifying the first and last time each TP1 cluster was seen in TP1
+  t_fal <- tp_comps %>% group_by(composition) %>% slice(1, n()) %>% 
+    add_column(type = rep(c("first", "last"), nrow(.)/2)) %>% dplyr::ungroup()
+
+  t_ff <- t_fal %>% filter(type == "first") %>% select(id, composition)
+  colnames(t_ff) <- c(paste0("first_", tpx, "_flag"), "composition")
+  
+  t_lf <- t_fal %>% filter(type == "last") %>% select(id, composition)
+  colnames(t_lf) <- c(paste0("last_", tpx, "_flag"), "composition")
+  
+  t_ff_lf <- full_join(t_ff, t_lf, by = "composition") %>% 
+    left_join(tp_comps, ., by = "composition") %>% 
+    select(-composition)
+  colnames(t_ff_lf)[colnames(t_ff_lf) == "id"] <- paste0(tpx, "_id")
+  
+  return(t_ff_lf)
+}
+
 # Indicates length of a process in hours, minutes, and seconds, when given a name of the process 
 # ("pt") and a two-element named vector with Sys.time() values named "start_time" and "end_time"
 timeTaken <- function(pt, sw) {
