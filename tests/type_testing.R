@@ -1,11 +1,6 @@
 suppressWarnings(suppressPackageStartupMessages(source("functions/tracking_functions.R")))
 source("class_definitions.R")
 cgm_all <- readRDS("outputs/isolates.Rds")
-# cgm_all <- read.table("outputs/CGM_strain_results.txt", sep = "\t", header = TRUE, stringsAsFactors = FALSE) %>% 
-#   as_tibble() %>% set_colnames(c("strain", "novel", "first_tp2_flag", "tp2_h", "tp2_cl", "tp2_cl_size", 
-#                                  "last_tp2_flag", "tp1_id", "tp1_h", "tp1_cl", "tp1_cl_size", "first_tp1_flag", 
-#                                  "last_tp1_flag", "add_TP1", "num_novs", "actual_size_change", 
-#                                  "actual_growth_rate", "novel_growth"))
 
 # f1 <- readBaseData(arg$tp1, 1, "\t")#arg$delimiter)
 # f2 <- readBaseData(arg$tp2, 2, "\t")#arg$delimiter)
@@ -110,7 +105,6 @@ assert(paste0("For novels first found in mixed clusters, they inherit the TP1 cl
 # for originals e.g. # idx <- "TP1_h0_c735"
 tp1_clusters <- cgm %>% filter(!is.na(tp1_id)) %>% pull(tp1_id) %>% unique()
 flag_check_t1 <- lapply(1:length(tp1_clusters), function(i) {
-  print(paste0(i, " / ", length(tp1_clusters)))
   idx <- tp1_clusters[i]
   c1 <- idx %>% strsplit(., "_") %>% unlist() %>% extract2(3) %>% gsub("c", "", .) %>% as.integer()
   c1strains <- f1 %>% select(strain, all_of(hy)) %>% 
@@ -213,9 +207,6 @@ assert("Actual growth rate == (TP2 cluster size - TP1 cluster size) / (TP1 clust
 assert("Growth rate for novels is denoted 'Inf' for infinite, since the denominator TP1 cluster size is 0", 
        cgm %>% filter(tp1_cl_size == 0) %>% pull(actual_growth_rate) %>% unique() %>% is.infinite())
 
-# new_growth = (c1$tp2_cl_size / (c1$tp2_cl_size - c1$num_novs)) %>% round(., digits = 3))
-# new_growth = (pure_novels$tp2_cl_size / (pure_novels$tp2_cl_size - pure_novels$num_novs)) %>% round(., digits = 3)
-
 # Checking novel growth was properly calculated for all originals
 novel_growth <- (originals$tp2_cl_size / (originals$tp2_cl_size - originals$num_novs)) %>% round(., digits = 3)
 assert("Novel growth == (TP2 cluster size / (TP2 cluster size - number of novels))", 
@@ -248,13 +239,11 @@ tp2_sizes <- tomelt %>% group_by(id) %>%
 
 # SPEED UP THIS PART
 starter_strains <- lapply(1:length(tp2_flags$first_tp2_flag), function(i) {
-  print(paste0(i, " / ", length(tp2_flags$first_tp2_flag)))
   tp2_sizes %>% filter(id == tp2_flags$first_tp2_flag[i]) %>% pull(strain) %>% return()
 }) %>% set_names(tp2_flags$first_tp2_flag)
 
 # SPEED UP THIS PART
 all_cases <- lapply(1:length(tp2_flags$first_tp2_flag), function(i) {
-  print(paste0(i, " / ", length(tp2_flags$first_tp2_flag)))
   tp2_sizes %>% filter(strain %in% starter_strains[[tp2_flags$first_tp2_flag[i]]]) %>% 
     filter(tp2_cl_size == length(starter_strains[[tp2_flags$first_tp2_flag[i]]])) %>% 
     slice(n()) %>% select(id) %>% return()
@@ -267,7 +256,6 @@ assert("All last_tp2_flags are correct, given that the first_tp2_flag is correct
 nov_check <- cgm %>% select(first_tp2_flag, num_novs)
 just_novels <- tomelt %>% filter(strain %in% novels)
 real_num_novs <- lapply(1:nrow(nov_check), function(i) {
-  print(paste0(i, " / ", nrow(nov_check)))
   just_novels %>% filter(id == nov_check$first_tp2_flag[i]) %>% nrow() %>% return()
 }) %>% unlist()
 
@@ -277,14 +265,77 @@ assert("The number of novels in each TP2 cluster was correctly identified",
        identical(nov_check$num_novs, real_num_novs))
 
 # Check that the number of sneakers was correctly identified for every cluster
-# for novels first found in pure novel TP2 clusters, should be 0
+# cgm %>% filter(tp1_cl_size == 0) %>% identical(., pure_novel)
+assert(paste0("For all novels first found in TP2 in purely novel clusters, the ", 
+              "number of 'sneakers' is 0"), all(pure_novel$add_TP1 == 0))
+# for originals, should have real values, or be 0
+cgm <- cgm_all %>% filter(tp1_h %in% c(NA, hchars[3]))
+
+atp1 <- cgm %>% filter(novel == 0) %>% 
+  select(tp1_id, first_tp2_flag, add_TP1) %>% unique()
+
+part1 <- f1 %>% melt(id = "strain") %>% as_tibble() %>% 
+  rename(tp1_h = variable, tp1_cl = value) %>% 
+  mutate(across(tp1_h, as.character)) %>% 
+  mutate(across(tp1_h, as.integer)) %>% 
+  newID(., "tp1", "tp1_h", "tp1_cl", padding_heights, padding_clusters) %>% 
+  rename(tp1_id = id) %>% 
+  filter(!(strain %in% novels))
+
+part2 <- f2 %>% melt(id = "strain") %>% as_tibble() %>% 
+  rename(tp2_h = variable, tp2_cl = value) %>% 
+  mutate(across(tp2_h, as.character)) %>% 
+  mutate(across(tp2_h, as.integer)) %>% 
+  newID(., "tp2", "tp2_h", "tp2_cl", padding_heights, padding_clusters) %>% 
+  rename(tp2_id = id)
+
+part3 <- part2 %>% filter(!(strain %in% novels))
+
+part4 <- part1 %>% group_by(tp1_id) %>% summarise(tp1_size = n()) %>% ungroup() %>% 
+  left_join(part1, ., by = "tp1_id")
+
+check_sneakers <- lapply(1:nrow(atp1), function(i) {
+  print(paste0(i, " / ", nrow(atp1)))
+  case1 <- atp1[i,]
+  a1 <- part1 %>% filter(tp1_id %in% case1$tp1_id) %>% select(strain)
+  a2 <- part3 %>% filter(tp2_id %in% case1$first_tp2_flag) %>% select(strain)
+  setdiff(a2, a1) %>% nrow() %>% return()
+}) %>% unlist() %>% 
+  add_column(atp1, actual = .)
+assert("For all originals, the sneakers have been correctly counted", 
+       all.equal(check_sneakers$add_TP1, check_sneakers$actual))
 # for novels first found in mixed novel TP2 clusters, should inherit from TP1 data
-# for originals, should have real values, or be 0 - CHECK
+# left_to_check <- cgm %>% filter(!(strain %in% pure_novel$strain)) %>% filter(novel != 0)
+# identical(left_to_check, mixed_novel)
+mixed_strains <- mixed_novel$strain
+first_seen_tp2 <- part2 %>% filter(strain %in% mixed_strains) %>% 
+  arrange(strain, tp2_h, tp2_cl) %>% group_by(strain) %>% slice(1) %>% ungroup() %>% 
+  left_join(., mixed_novel[,c("strain", "add_TP1")])
+# seen before (in TP1 cases)
+a3 <- check_sneakers %>% select(-add_TP1)
+sb <- first_seen_tp2[which(first_seen_tp2$tp2_id %in% check_sneakers$first_tp2_flag),] %>% 
+  left_join(., a3, by = c("tp2_id" = "first_tp2_flag"))
+assert(paste0("Novels that are first found in mixed TP2 clusters, whose TP1 clusters have ", 
+              "been seen before, have sneakers counted accurately"), 
+       all.equal(sb$add_TP1, sb$actual))
+# not seen before
+ns <- first_seen_tp2[which(!(first_seen_tp2$tp2_id %in% check_sneakers$first_tp2_flag)),]
+actual_sizes <- ns$tp2_id %>% unique() %>% 
+  lapply(., function(x) {
+    stx <- part2 %>% filter(tp2_id %in% x) %>% filter(!(strain %in% novels)) %>% pull(strain)
+    part4 %>% filter(strain %in% stx) %>% arrange(tp1_h, tp1_cl) %>% 
+      filter(tp1_size == length(stx)) %>% slice(1) %>% pull(tp1_size) %>% return()
+  }) %>% unlist() %>% tibble(tp2_id = unique(ns$tp2_id), tracked_tp1_size = .)
 
+leftover_check <- cgm %>% filter(strain %in% ns$strain) %>% 
+  select(strain, tp1_cl_size, add_TP1, tp2_cl_size, first_tp2_flag) %>% 
+  rename(tp2_id = first_tp2_flag) %>% left_join(., actual_sizes)
 
-#     - add_TP1
+assert(paste0("Novels first found in mixed TP2 clusters, whose TP1 clusters have not ", 
+              "been seen before, have been tracked back to appropriate TP1 clusters ", 
+              "(using current TP2)"), 
+       all.equal(leftover_check$tp1_cl_size, leftover_check$tracked_tp1_size))
+assert(paste0("Assuming the previous assert passed, we then know there must be ", 
+              "no 'sneakers' in these clusters"), all(leftover_check$add_TP1 == 0))
 
-
-
-
-
+cat("All cases checked.")
