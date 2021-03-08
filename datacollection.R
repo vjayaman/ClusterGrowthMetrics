@@ -13,7 +13,6 @@ option_list <- list(
                             "use as heights for which to generate cluster and strain tables")))
 
 arg <- parse_args(OptionParser(option_list=option_list))
-# arg <- tibble(tp1 = "t1_clusters_processed.csv", tp2 = "t2_clusters_processed.csv", heights = "0,5,10")
 
 outputDetails(paste0("\n||", paste0(rep("-", 32), collapse = ""), " Cluster metric generation ", 
                      paste0(rep("-", 32), collapse = ""), "||\nStarted process at: ", Sys.time()))
@@ -24,7 +23,7 @@ outputDetails(paste0("\nPART 1 OF 3: Data processing ", paste0(rep(".", 66), col
 
 stopwatch <- list("start_time" = as.character.POSIXt(Sys.time()), "end_time" = NULL)
 
-# DATA PREPARATION
+# TP DATA PREPARATION ---------------------------------------------------------------------------------------------------
 f1 <- readBaseData(arg$tp1, 1, reader::get.delim(arg$tp1))
 f2 <- readBaseData(arg$tp2, 2, reader::get.delim(arg$tp2))
 heights <- strsplit(arg$heights, split = ",") %>% unlist()
@@ -37,21 +36,23 @@ ph <- max(nchar(colnames(f1)[-1]), nchar(colnames(f2)[-1]))
 pc <- f1 %>% select(-isolate) %>% max(., f1 %>% select(-isolate)) %>% nchar()
 
 outputDetails("  Processing timepoint clusters for easier data handling and flagging clusters", newcat = TRUE)
-tp1 <- Timedata$new("tp1", raw = f1, all_isolates, pad_height = ph, pad_cluster = pc)$set_comps()$flag_clusters()
-tp2 <- Timedata$new("tp2", raw = f2, all_isolates, pad_height = ph, pad_cluster = pc)$set_comps()$set_cnames()
+tp1 <- Timedata$new("tp1", raw = f1, all_isolates, pad_height = ph, pad_cluster = pc)$set_comps()$
+  flag_clusters()
+
+tp2 <- Timedata$new("tp2", raw = f2, all_isolates, pad_height = ph, pad_cluster = pc)$set_comps()$
+  set_cnames()
 
 outputDetails("  Collecting and counting novel isolates in each TP2 cluster...", newcat = TRUE)
 novels <- setdiff(tp2$coded$isolate, tp1$coded$isolate)
 
-tp2$comps <- tp2$coded %>% filter(isolate %in% novels) %>%
-  group_by(tp2_id) %>% summarise(num_novs = n(), .groups = "drop") %>% 
-  left_join(tp2$comps, ., by = "tp2_id") %>% 
+tp2$comps <- tp2$coded %>% filter(isolate %in% novels) %>% group_by(tp2_id) %>% 
+  summarise(num_novs = n(), .groups = "drop") %>% left_join(tp2$comps, ., by = "tp2_id") %>% 
   mutate(num_novs = ifelse(is.na(num_novs), 0, num_novs))
 
 tp2$flag_clusters()$coded_status(novels)
 tp1$coded_status(novels)
 
-### BASE CASE ---------------------------------------------------------------------------------
+# BASE CASE (FIRST HEIGHT) ----------------------------------------------------------------------------------------------
 outputDetails(paste0("\nPART 2 OF 3: Tracking and flagging clusters for base case ", 
                      paste0(rep(".", 37), collapse = "")), newcat = TRUE)
 outputDetails(paste0("  Collecting height data for base case, height ", heights[1], "..."), newcat = TRUE)
@@ -59,15 +60,13 @@ outputDetails(paste0("  Collecting height data for base case, height ", heights[
 hx <- Heightdata$new(starter = heights[1], t1_comps = tp1$comps, hvals = heights)$
   clust_tracking(tp2$comps, tp2$cnames, tp1$coded, tp2$coded, TRUE)$
   update_iteration()
-beepr::beep(3)
-# dc <- hx$clone(deep = TRUE)
-### REST OF THE HEIGHTS -----------------------------------------------------------------------
+
+# REST OF THE HEIGHTS ---------------------------------------------------------------------------------------------------
 if (length(heights) > 1) {
   outputDetails(paste0("\nPART 3 OF 3: Tracking and flagging clusters for the rest of the heights (",
                        length(heights) - 1, " of them) ..........."), newcat = TRUE)
-  outputDetails(paste0("  This may take some time. \n  Note that for a more detailed look at progress, ", 
-                       "you can keep an eye on the outputs \n  directory, where updated data will be saved ", 
-                       "after each height.\n"))
+  outputDetails(paste0("  This may take some time. \n  Note that for a more detailed look at progress, you can keep ", 
+                       "an eye on the outputs \n  directory, where updated data will be saved after each height.\n"))
   outputDetails("  Collecting data for other heights: ", newcat = TRUE)
 
   fcb <- txtProgressBar(min = 0, max = length(heights[-1]), initial = 0, style = 3)
@@ -79,11 +78,11 @@ if (length(heights) > 1) {
 
     # Part 1: unchanged(): identifying clusters that have not changed from the previous height
     # Part 2: takes comps for new height, previous height, and the tracked data for the previous height
-    # identifies which clusters have not changed since the previous height, and reuses the tracking data
+    #   --> identifies clusters that have not changed since the previous height, and reuses their tracking data
     hx$post_data(tp1$comps)$
       unchanged()
 
-    # Part 2: tracking clusters that changed
+    # Part 2: tracking clusters that changed, saving to results list, and prepping variable for next height
     hx$comps <- hx$aft %>% filter(!(id_aft %in% hx$same$tp1_id)) %>% set_colnames(colnames(tp1$comps))
     hx$clust_tracking(tp2$comps, tp2$cnames, tp1$coded, tp2$coded, FALSE)$
       update_iteration()$
@@ -107,8 +106,8 @@ isolates_base <- tp1$melted %>% mutate(across(tp1_h, as.integer)) %>%
   left_join(., clusters_just_tp1, by = c("tp1_id", "tp1_h", "tp1_cl")) %>% 
   arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
 
-# NOVELS ---------------------------------------------------------------------------------------------------
-first_nov_flag <- tp2$cs %>% filter(!is.na(status)) %>% group_by(isolate) %>% slice(1) %>% ungroup() %>% pull(tp2_id)
+# NOVELS ----------------------------------------------------------------------------------------------------------------
+first_nov_flag <- tp2$status %>% filter(!is.na(status)) %>% group_by(isolate) %>% slice(1) %>% ungroup() %>% pull(tp2_id)
 
 novels_only_tracking <- tp2$flagged %>% 
   filter(tp2_id %in% first_nov_flag) %>% 
@@ -136,6 +135,7 @@ all_mixed <- isolates_base %>%
   select(-isolate, -tp1_id, -tp1_h, -tp1_cl, -first_tp1_flag, -last_tp1_flag) %>% 
   left_join(mixed_novels, .) %>% unique() %>% select(colnames(isolates_base))
 
+# FULL STRAIN FILE ------------------------------------------------------------------------------------------------------
 # note: two types of novel clusters, those that are fully novel, and those that are not
 isolates_file <- bind_rows(isolates_base, pure_novels) %>% bind_rows(., all_mixed) %>% 
   mutate(novel = ifelse(isolate %in% setdiff(tp2$raw$isolate, tp1$raw$isolate), 1, 0)) %>% 
@@ -156,7 +156,7 @@ isolates_file %>%
                  "Novel growth = (TP2 size) / (TP2 size - number of novels)")) %>% 
   write.table(., file.path("outputs/","CGM_strain_results.txt"), row.names = FALSE, quote = FALSE, sep = "\t")
 
-# ----------------------------------------------------------------------------------------------------------
+# WRAPPING THINGS UP ----------------------------------------------------------------------------------------------------
 stopwatch[["end_time"]] <- as.character.POSIXt(Sys.time())
 
 outputDetails(paste0("  Successfully collected data for all heights."), newcat = TRUE)

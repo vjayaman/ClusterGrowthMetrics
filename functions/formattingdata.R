@@ -2,8 +2,8 @@ x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", "reader"
        "stringr", "ggplot2", "plotly", "optparse", "methods", "R6", "testit")
 lapply(x, require, character.only = TRUE)
 
+# Identifying the first and last time each TPX cluster was seen in TPX - flags (for TP1 and TP2 individually)
 flaggingClusters <- function(tp_comps, tpx) {
-  # Identifying the first and last time each TP1 cluster was seen in TP1
   t_fal <- tp_comps %>% group_by(composition) %>% slice(1, n()) %>% 
     add_column(type = rep(c("first", "last"), nrow(.)/2)) %>% dplyr::ungroup()
 
@@ -38,7 +38,7 @@ timeTaken <- function(pt, sw) {
   }
 }
 
-# Outputs the same message in two ways, one is directed to stdout and one to a log file
+# Outputs the same message in two ways, one is directed to standard output and one to a log file
 outputDetails <- function(msg, newcat = FALSE) {
   cat(msg)
   if (newcat) {cat("\n")}
@@ -102,17 +102,7 @@ meltedSizing <- function(df, y, ph, pc) {
                    paste0(tp, "id"), paste0(tp, "cl_size"))) %>% return()
 }
 
-# Adds leading zeros to column cname in dataframe df, with a prefix of a leading character (lc) 
-# followed by w zeros (if no number is provided, the max number of characters in the column is used)
-leadingZeros <- function(df, cname, lc, w = NULL) {
-  if (is.null(w)) {
-    w <- df[,cname] %>% max() %>% nchar()
-  }
-  df[,cname] <- pull(df, cname) %>% formatC(., width = w, format = "d", flag = "0") %>% paste0(lc, .)
-  return(df)
-}
-
-# given the defining filename, read in the data (need the full path from your working directory), 
+# Given the defining filename, read in the data (need the full path from your working directory), 
 # indicate to user if file is not found
 readBaseData <- function(filename, file_number, delimiter) {
   if (is.na(filename)) {
@@ -123,9 +113,9 @@ readBaseData <- function(filename, file_number, delimiter) {
   }
 }
 
-padCol <- function(colvalues, padval, padchr) {
-  ifelse(!is.na(colvalues), 
-         formatC(colvalues, width = padval, format = "d", flag = "0") %>% 
+# For padding height and cluster columns with h0..0.., and c0..0.., respectively
+padCol <- function(cvals, padval, padchr) {
+  ifelse(!is.na(cvals), formatC(cvals, width = padval, format = "d", flag = "0") %>% 
            paste0(padchr, .), NA) %>% return()
 }
 
