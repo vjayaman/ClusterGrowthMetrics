@@ -2,6 +2,7 @@ Timedata <- R6Class(
   "Timedata", lock_objects = FALSE, 
   public = list(
     name = NULL, raw = NULL, isos = NULL, flagged = NULL, cnames = NULL, 
+    coded = NULL, melted = NULL, comps = NULL, status = NULL, 
     
     initialize = function(name, raw, isos, coded, melted, comps, pad_height, pad_cluster) {
       self$name <- name
@@ -14,6 +15,9 @@ Timedata <- R6Class(
     }, 
     start = function() {
       cat(paste0("  Initialized object for ", toupper(self$name), "\n"))
+    }, 
+    coded_status = function(nov_code) {
+      self$status <- self$coded %>% mutate(status = ifelse(isolate %in% nov_code, "novs", NA))
     }, 
     set_comps = function() {
       self$comps <- self$coded %>% 
@@ -44,6 +48,7 @@ Heightdata <- R6Class(
       self$comps <- t1_comps %>% filter(tp1_h == starter) %>% arrange(tp1_h, tp1_cl)
       self$prior_data(t1_comps)
       self$results <- vector(mode = "list", length = length(hvals)) %>% set_names(hvals)
+      invisible(self)
     }, 
     clust_tracking = function(t2_comps, t2_cnames, t1_coded, t2_coded, indp) {
       self$changed <- trackClusters(self$comps, t2_comps, t2_cnames, t1_coded, t2_coded, indp)

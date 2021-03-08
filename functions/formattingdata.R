@@ -55,10 +55,6 @@ newID <- function(df, tpx, c1, c2, ph, pc) {
   df %>% add_column(id = paste0(toupper(tpx), "_", newh, "_", newc)) %>% return()
 }
 
-# rmIDComp <- function(df) {
-#   df %>% select(-id, -composition) %>% return()
-# }
-
 meltData <- function(dataset, id_val) {
   melt(dataset, id = id_val) %>% as_tibble() %>% return()
 }
@@ -67,10 +63,6 @@ meltData <- function(dataset, id_val) {
 factorToInt <- function(df, c1) {
   df %>% mutate(across(all_of(c1), as.character)) %>% 
     mutate(across(all_of(c1), as.integer)) %>% return()
-}
-
-charToInt <- function(x, v) {
-  gsub(v, "", x) %>% as.integer()
 }
 
 # Given a raw time point dataset, the timepoint ID (e.g. "tp1"), and a list of all isolates 
@@ -137,24 +129,12 @@ padCol <- function(colvalues, padval, padchr) {
            paste0(padchr, .), NA) %>% return()
 }
 
-formatColumns <- function(res_file, time1_raw, time2_raw) {
-  res_file$actual_growth_rate %<>% format(., digits = 3, nsmall = 3)
-  res_file$new_growth %<>% format(., digits = 3, nsmall = 3)
-  
-  res_file %>% 
-    leadingZeros(., "tp1_cl", "c") %>% leadingZeros(., "tp2_cl", "c") %>% 
-    leadingZeros(., "tp1_h", "h", w = max(nchar(colnames(time1_raw)[-1]))) %>% 
-    leadingZeros(., "tp2_h", "h", w = max(nchar(colnames(time2_raw)[-1]))) %>% 
-    return()
-}
-
 meltedIDs <- function(df, k, ph, pc) {
   cnames <- paste0(k, c("", "_h", "_cl", "_id"))
   df %>% melt(id = "isolate") %>% as_tibble() %>% 
     set_colnames(c("isolate", cnames[2:3])) %>% 
     mutate(across(cnames[2], as.character)) %>% 
     newID(., cnames[1], cnames[2], cnames[3], ph, pc) %>% 
-    # createID(., cnames[1], cnames[2], cnames[3]) %>% 
     set_colnames(c("isolate", cnames[2:4])) %>% return()
 }
 
@@ -164,5 +144,3 @@ convertAndSave <- function(ip, op) {
   df %>% set_colnames(c("isolate", 0:m1)) %>% 
     write.table(., op, row.names = FALSE, quote = FALSE, sep = "\t")
 }
-
-# assertthat::see_if(identical(a1, a2), msg = paste0("File ", j, " is not the same in both directories."))
