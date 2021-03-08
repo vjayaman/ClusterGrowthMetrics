@@ -15,13 +15,12 @@ arg <- parse_args(OptionParser(option_list=option_list))
 
 stopwatch <- list(as.character.POSIXt(Sys.time()))
 
-f1 <- readBaseData(arg$tp1, 1, "\t")#arg$delimiter)
-f2 <- readBaseData(arg$tp2, 2, "\t")#arg$delimiter)
-heights <- strsplit(arg$heights, split = ",") %>% unlist()
+# f1 <- readBaseData(arg$tp1, 1, "\t")#arg$delimiter)
+# f2 <- readBaseData(arg$tp2, 2, "\t")#arg$delimiter)
+# heights <- strsplit(arg$heights, split = ",") %>% unlist()
 
-# f1 <- readBaseData("t1_clusters_processed.csv", 1, "\t")
-# f2 <- readBaseData("t2_clusters_processed.csv", 2, "\t")
-# heights <- "100"
+f1 <- readBaseData("t1_clusters_processed.csv", 1, "\t")
+f2 <- readBaseData("t2_clusters_processed.csv", 2, "\t")
 
 colnames(f1)[1] <- colnames(f2)[1] <- "isolate"
 
@@ -44,13 +43,14 @@ tp2$comps <- tp2$comps %>% left_join(., counting_novels, by = "id")
 tp2$comps$num_novs[is.na(tp2$comps$num_novs)] <- 0
 
 
-collected_data <- read.csv(file = "outputs/CGM_cluster_results.txt", sep = "\t",
+collected_data <- read.csv(file = "outputs/CGM_strain_results.txt", sep = "\t",
                            stringsAsFactors = FALSE, numerals = "no.loss") %>% as_tibble() %>% 
   select(TP1.ID, TP1.height, TP1.cluster, First.time.this.cluster.was.seen.in.TP2, TP2.height, 
          TP2.cluster, TP1.cluster.size, TP2.cluster.size, Number.of.additional.TP1.strains.in.the.TP2.match, 
          Number.of.novels.in.the.TP2.match, Actual.cluster.size.change..TP2.size...TP1.size.) %>% 
   set_colnames(c("tp1_id", "tp1_h", "tp1_cl", "tp2_id", "tp2_h", "tp2_cl", 
                  "tp1_cl_size", "tp2_cl_size", "add_TP1", "num_nov", "size_change")) %>% 
+  unique() %>% 
   arrange(tp1_h, tp1_cl, tp2_h, tp2_cl)
 
 collected_data$tp1_h %<>% charToInt(., "h")
@@ -58,10 +58,10 @@ collected_data$tp1_cl %<>% charToInt(., "c")
 collected_data$tp2_h %<>% charToInt(., "h")
 collected_data$tp2_cl %<>% charToInt(., "c")
 
-heights <- collected_data$tp1_h %>% unique()
+heights <- collected_data %>% filter(!is.na(tp1_h)) %>% pull(tp1_h) %>% unique()
 
-b1 <- meltedSizing(tp1$raw, "tp1")
-b2 <- meltedSizing(tp2$raw, "tp2")
+b1 <- meltedSizing(tp1$raw, "tp1", padding_heights, padding_clusters)
+b2 <- meltedSizing(tp2$raw, "tp2", padding_heights, padding_clusters)
 novels <- setdiff(b2$isolate, b1$isolate)
 
 for (j in 1:length(heights)) {
@@ -118,4 +118,6 @@ for (j in 1:length(heights)) {
   print(paste0("Threshold ", heights[j], " (", j, " of ", length(heights), "): ", identical(cd, ad)))
 }
 
+stopwatch <- append(stopwatch, values = as.character.POSIXt(Sys.time())) %>% 
+  set_names(c("start_time", "end_time"))
 

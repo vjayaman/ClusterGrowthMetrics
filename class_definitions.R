@@ -1,18 +1,34 @@
 Timedata <- R6Class(
   "Timedata", lock_objects = FALSE, 
   public = list(
-    name = NULL, raw = NULL, isos = NULL, 
-    initialize = function(name, raw, isos, coded, melted, comps, ph, pc) {
+    name = NULL, raw = NULL, isos = NULL, flagged = NULL, cnames = NULL, 
+    
+    initialize = function(name, raw, isos, coded, melted, comps, pad_height, pad_cluster) {
       self$name <- name
       self$raw <- raw
       self$isos <- raw %>% pull(isolate)
-      self$coded <- codeIsolates(raw, name, isos, ph, pc)
-      self$melted <- meltedIDs(raw, name, ph, pc)
+      self$coded <- codeIsolates(raw, name, isos, pad_height, pad_cluster)
+      self$melted <- meltedIDs(raw, name, pad_height, pad_cluster)
       self$start()
+      invisible(self)
     }, 
-    start = function() {cat(paste0("  Initialized object for ", toupper(self$name), "\n"))}, 
-    set_comps = function(coded_data) {
-      self$comps <- compsSet(coded_data, toupper(self$name), indicate_progress = TRUE)
+    start = function() {
+      cat(paste0("  Initialized object for ", toupper(self$name), "\n"))
+    }, 
+    set_comps = function() {
+      self$comps <- self$coded %>% 
+        set_colnames(gsub(self$name, "tp", colnames(.))) %>% 
+        compsSet(., toupper(self$name), indicate_progress = TRUE)
+      invisible(self)
+    }, 
+    set_cnames = function() {
+      self$cnames <- self$coded %>% pull(grep("h", colnames(self$coded), value = TRUE)) %>% unique() %>% sort()
+      invisible(self)
+    }, 
+    flag_clusters = function() {
+      # Identifying the first and last time each TPX cluster was seen in TPX
+      self$flagged <- flaggingClusters(self$comps, self$name)
+      invisible(self)
     }
   )
 )
@@ -21,18 +37,16 @@ Heightdata <- R6Class(
   "Heightdata", lock_objects = FALSE, 
   public = list(
     h_before = NULL, h_after = NULL, comps = NULL, changed = tibble(), same = tibble(), 
-    tracked = NULL, bef = NULL, aft = tibble(), 
+    tracked = NULL, bef = NULL, aft = tibble(), results = NULL, 
     
-    initialize = function(h_before, t1_comps) {
-      self$h_before <- h_before
-      self$comps <- t1_comps %>% filter(tp1_h == h_before) %>% arrange(tp1_h, tp1_cl)
+    initialize = function(starter, t1_comps, hvals) {
+      self$h_after <- self$h_before <- starter
+      self$comps <- t1_comps %>% filter(tp1_h == starter) %>% arrange(tp1_h, tp1_cl)
       self$prior_data(t1_comps)
+      self$results <- vector(mode = "list", length = length(hvals)) %>% set_names(hvals)
     }, 
-    clust_tracking = function(t2_comps, t2_cnames, t1_coded, t2_coded, indp, ph, pc) {
-      self$changed <- self$comps %>% 
-        trackClusters(., t2_comps, t2_cnames, t1_coded, t2_coded, indp) %>% 
-        newID(., "tp1", "tp1_h", "tp1_cl", ph, pc)
-        # createID(., "tp1", "tp1_h", "tp1_cl")
+    clust_tracking = function(t2_comps, t2_cnames, t1_coded, t2_coded, indp) {
+      self$changed <- trackClusters(self$comps, t2_comps, t2_cnames, t1_coded, t2_coded, indp)
       invisible(self)
     }, 
     prior_data = function(t1_comps) {
@@ -48,23 +62,17 @@ Heightdata <- R6Class(
       self$same <- noChange(self$aft, self$bef, self$tracked)
     }, 
     update_iteration = function() {
+      self$tracked <- bind_rows(self$changed, self$same) %>% arrange(tp1_h, tp1_cl)
+      self$results[[self$h_after]] <- self$tracked
+      invisible(self)
+    }, 
+    next_iteration = function() {
       self$h_before <- self$h_after
       self$h_after <- NULL
       
       self$bef <- self$aft %>% set_colnames(c("h_bef", "cl_bef", "id_bef", "comp", "size_bef"))
       self$aft <- tibble()
-    }, 
-    # update_tracking = function() {
-    #   self$tracked <- self$changed
-    #   invisible(self)
-    # }, 
-    # add_flag = function() {
-    #   self$tracked <- self$changed %>% add_column(flag = self$changed$id)
-    #   invisible(self)
-    # }, 
-    saveTempFile = function(t1_coded, op, ph) {
-      m2 <- formatC(as.integer(self$h_after), width = ph, format = "d", flag = "0")
-      saveRDS(self$tracked, file.path(op, paste0("h", m2, ".Rds")))
     }
   )
 )
+

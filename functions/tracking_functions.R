@@ -44,22 +44,23 @@ compsSet <- function(tp_coded, tp, indicate_progress) {
     bind_cols(., tmp) %>% mutate(across(c(tp_h, tp_cl), as.integer))
   
   if (tp == "TP1") {
-    tpcomps %>% rename(tp1_h = tp_h, tp1_cl = tp_cl, tp1_cl_size = size) %>% return()
+    tpcomps %>% rename(tp1_h = tp_h, tp1_cl = tp_cl, tp1_cl_size = size, tp1_id = id) %>% return()
   }else {
-    tpcomps %>% rename(tp2_h = tp_h, tp2_cl = tp_cl, tp2_cl_size = size) %>% return()
+    tpcomps %>% rename(tp2_h = tp_h, tp2_cl = tp_cl, tp2_cl_size = size, tp2_id = id) %>% return()
   }
 }
 
+# ca <- hx$aft; cb <- hx$bef; hb <- hx$tracked
 noChange <- function(ca, cb, hb) {
+  # these are clusters whose composition did not change from cb to ca (height x to height x+1)
   in_both_heights <- ca %>% 
     inner_join(., cb, by = "comp") %>% 
     select(h_aft, cl_aft, size_aft, id_bef, id_aft)
   
-  stayed_the_same <- left_join(in_both_heights, hb, by = c("id_bef" = "id")) %>% 
+  stayed_the_same <- left_join(in_both_heights, hb, by = c("id_bef" = "tp1_id")) %>% 
     select(-tp1_h, -tp1_cl, -tp1_cl_size, -id_bef) %>% 
-    rename(tp1_h=h_aft, tp1_cl=cl_aft, tp1_cl_size=size_aft, id=id_aft) %>% 
+    rename(tp1_h=h_aft, tp1_cl=cl_aft, tp1_cl_size=size_aft, tp1_id=id_aft) %>% 
     select(colnames(hb))
-  # stayed_the_same$flagged_heights <- stayed_the_same$flagged_heights + 1  
   
   # not found in TP2 in some capacity
   inds <- which(is.na(stayed_the_same$tp2_h))
@@ -76,31 +77,40 @@ checkEachIsolate <- function(cluster_i, t2_coded, t2_comps) {
     isolates <- strsplit(cluster_i$composition, split = ", ") %>% unlist()  
   }
   ids <- t2_coded %>% filter(isolate %in% isolates) %>%
-    pull(id) %>% table() %>% 
-    as.data.frame() %>% as_tibble() %>% set_colnames(c("id", "size")) %>% 
-    filter(size == length(isolates)) %>% pull(id)
-  df2 <- t2_comps %>% filter(id %in% ids)
+    pull(tp2_id) %>% table() %>% 
+    as.data.frame() %>% as_tibble() %>% set_colnames(c("tp2_id", "size")) %>% 
+    filter(size == length(isolates)) %>% pull(tp2_id)
+  df2 <- t2_comps %>% filter(tp2_id %in% ids)
   
-  cluster_i %>% rmIDComp() %>% bind_cols(., df2) %>% rmIDComp() %>% return()
+  # cluster_i %>% rmIDComp() %>% bind_cols(., df2) %>% rmIDComp() %>% return()
+  cluster_i %>% select(-composition) %>% bind_cols(., df2) %>% select(-composition) %>% return()
 }
 
 # When using grep: if looking for 1, will return 1, 10, 214, etc. So we sandwich with hyphens: -1-,-10-,...
+# hdata <- hx$comps
+# t2_comps <- tp2$comps
+# t2names <- tp2$cnames
+# t1_coded <- tp1$coded
+# t2_coded <- tp2$coded
+# indicate_progress <- TRUE
+
 trackClusters <- function(hdata, t2_comps, t2names, t1_coded, t2_coded, indicate_progress) {
   
   singletons <- hdata %>% filter(tp1_cl_size == 1)
   t1set <- t2set <- tibble()
   if (nrow(singletons) > 0) { # at least one singleton cluster
-    isos_in_tp1 <- t1_coded %>% filter(id %in% singletons$id) %>% rename(tp1_id = id)
+    isos_in_tp1 <- t1_coded %>% filter(tp1_id %in% singletons$tp1_id)
     
     a3 <- t2_coded %>% filter(isolate %in% isos_in_tp1$isolate) %>% 
-      rename(tp2_id = id) %>% left_join(isos_in_tp1, ., by = "isolate") %>% select(-isolate)
+      left_join(isos_in_tp1, ., by = "isolate") %>% select(-isolate)
     
-    a4 <- singletons %>% select(id, tp1_cl_size) %>% rename(tp1_id = id) %>% left_join(a3, ., by = "tp1_id")
+    a4 <- singletons %>% select(tp1_id, tp1_cl_size) %>% left_join(a3, ., by = "tp1_id")
     
     # basic TP1 data | basic TP2 data | number novels
     # i.e. the singletons are tracked to the TP2 clusters they're found in
-    t1set <- t2_comps %>% select(id, tp2_cl_size, num_novs) %>% rename(tp2_id = id) %>% 
-      left_join(a4, ., by = "tp2_id") %>% select(tp1_h, tp1_cl, tp1_cl_size, tp2_h, tp2_cl, tp2_cl_size, num_novs)
+    t1set <- t2_comps %>% select(tp2_id, tp2_cl_size, num_novs) %>% 
+      left_join(a4, ., by = "tp2_id") %>% 
+      select(tp1_h, tp1_cl, tp1_id, tp1_cl_size, tp2_h, tp2_cl, tp2_id, tp2_cl_size, num_novs)
   }
   
   hx <- hdata %>% filter(tp1_cl_size > 1)
@@ -116,7 +126,9 @@ trackClusters <- function(hdata, t2_comps, t2names, t1_coded, t2_coded, indicate
         results_i <- checkEachIsolate(cluster_i, t2_coded, t2_comps)
       }else {
         inds <- grep(cluster_i$composition, t2_comps$composition)
-        results_i <- t2_comps[inds,] %>% rmIDComp() %>% bind_cols(cluster_i, .) %>% rmIDComp()
+        # results_i <- t2_comps[inds,] %>% rmIDComp() %>% bind_cols(cluster_i, .) %>% rmIDComp()
+        results_i <- t2_comps[inds,] %>% select(-composition) %>% 
+          bind_cols(cluster_i, .) %>% select(-composition)
         
         if (nrow(results_i) == 0) {
           results_i <- checkEachIsolate(cluster_i, t2_coded, t2_comps)
@@ -150,9 +162,9 @@ oneHeight <- function(novels, tp1, tp2, oneh) {
   
   nov_code <- setdiff(tp2$coded$isolate, tp1$coded$isolate) %>% unique()
   
-  q1 <- tp1$coded %>% rename(tp1_id = id) %>% add_column(status = NA)
+  q1 <- tp1$coded %>% add_column(status = NA)
   
-  q2 <- tp2$coded %>% rename(tp2_id = id) %>% add_column(status = NA)
+  q2 <- tp2$coded %>% add_column(status = NA)
   q2$status[which(q2$isolate %in% nov_code)] <- "novs"
   
   sneakers <- lapply(1:nrow(chg), function(j) {

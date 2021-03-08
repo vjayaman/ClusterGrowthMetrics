@@ -1,4 +1,4 @@
-x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", 
+x <- c("tibble", "magrittr", "dplyr", "reshape2", "scales", "progress", "reader", 
        "stringr", "ggplot2", "plotly", "optparse", "methods", "R6", "testit")
 lapply(x, require, character.only = TRUE)
 
@@ -7,18 +7,15 @@ flaggingClusters <- function(tp_comps, tpx) {
   t_fal <- tp_comps %>% group_by(composition) %>% slice(1, n()) %>% 
     add_column(type = rep(c("first", "last"), nrow(.)/2)) %>% dplyr::ungroup()
 
-  t_ff <- t_fal %>% filter(type == "first") %>% select(id, composition)
+  t_ff <- t_fal %>% filter(type == "first") %>% select(grep("id", colnames(.)), composition)
   colnames(t_ff) <- c(paste0("first_", tpx, "_flag"), "composition")
   
-  t_lf <- t_fal %>% filter(type == "last") %>% select(id, composition)
+  t_lf <- t_fal %>% filter(type == "last") %>% select(grep("id", colnames(.)), composition)
   colnames(t_lf) <- c(paste0("last_", tpx, "_flag"), "composition")
   
-  t_ff_lf <- full_join(t_ff, t_lf, by = "composition") %>% 
+  full_join(t_ff, t_lf, by = "composition") %>% 
     left_join(tp_comps, ., by = "composition") %>% 
-    select(-composition)
-  colnames(t_ff_lf)[colnames(t_ff_lf) == "id"] <- paste0(tpx, "_id")
-  
-  return(t_ff_lf)
+    select(-composition) %>% return()
 }
 
 # Indicates length of a process in hours, minutes, and seconds, when given a name of the process 
@@ -58,9 +55,9 @@ newID <- function(df, tpx, c1, c2, ph, pc) {
   df %>% add_column(id = paste0(toupper(tpx), "_", newh, "_", newc)) %>% return()
 }
 
-rmIDComp <- function(df) {
-  df %>% select(-id, -composition) %>% return()
-}
+# rmIDComp <- function(df) {
+#   df %>% select(-id, -composition) %>% return()
+# }
 
 meltData <- function(dataset, id_val) {
   melt(dataset, id = id_val) %>% as_tibble() %>% return()
@@ -81,15 +78,18 @@ charToInt <- function(x, v) {
 codeIsolates <- function(df, tpx, all_iso, ph, pc) {
   hx <- paste0(tpx, "_h")
   cx <- paste0(tpx, "_cl")
+  idx <- paste0(tpx, "_id")
   
-  df %>% right_join(all_iso, ., by = c("char_isolate" = "isolate")) %>% select(-char_isolate) %>% 
+  df %>% right_join(all_iso, ., by = c("char_isolate" = "isolate")) %>% 
+    select(-char_isolate) %>% 
     rename(isolate = num_isolate) %>% 
     melt(id = "isolate") %>% as_tibble() %>% 
     set_colnames(c("isolate", hx, cx)) %>% 
     factorToInt(., hx) %>% 
     newID(., tpx, hx, cx, ph, pc) %>% 
-    # createID(., tpx, hx, cx) %>% 
-    mutate(isolate = paste0("-", isolate, "-")) %>% return()
+    mutate(isolate = paste0("-", isolate, "-")) %>% 
+    rename_with(., ~gsub("id", idx, .x)) %>% return()
+  
 }
 
 # Function used in manual_check_results.R, given raw data for a timepoint and a lowercase 
@@ -122,13 +122,19 @@ leadingZeros <- function(df, cname, lc, w = NULL) {
 
 # given the defining filename, read in the data (need the full path from your working directory), 
 # indicate to user if file is not found
-readBaseData <- function(filename, file_number, separator) {
+readBaseData <- function(filename, file_number, delimiter) {
   if (is.na(filename)) {
     stop(paste0("Time point ", file_number, " dataset not found."))
   }else {
-    read.csv(file = filename, stringsAsFactors = FALSE, numerals = "no.loss", 
-             check.names = FALSE, sep = separator) %>% as_tibble() %>% return()
+    read.table(file = filename, stringsAsFactors = FALSE, check.names = FALSE, 
+               header = TRUE, sep = delimiter, allowEscapes = TRUE) %>% as_tibble() %>% return()
   }
+}
+
+padCol <- function(colvalues, padval, padchr) {
+  ifelse(!is.na(colvalues), 
+         formatC(colvalues, width = padval, format = "d", flag = "0") %>% 
+           paste0(padchr, .), NA) %>% return()
 }
 
 formatColumns <- function(res_file, time1_raw, time2_raw) {
